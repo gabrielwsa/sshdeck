@@ -1,6 +1,6 @@
 //! Geração de ~/.ssh/sshdeck.conf e import do ~/.ssh/config existente.
 
-use crate::vault::Host;
+use crate::vault::{Host, Kind};
 use anyhow::{Context, Result};
 use std::{
     fs,
@@ -24,8 +24,17 @@ pub fn write(hosts: &[Host]) -> Result<()> {
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
     }
 
+    let path = dir.join(MANAGED_FILE);
+    fs::write(&path, render(hosts))?;
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
+
+    ensure_include(&dir)
+}
+
+/// Texto do ~/.ssh/sshdeck.conf: só hosts SSH, nunca senhas.
+fn render(hosts: &[Host]) -> String {
     let mut out = String::from("# Gerado pelo sshdeck — não edite à mão, use o sshdeck.\n");
-    for h in hosts {
+    for h in hosts.iter().filter(|h| h.kind == Kind::Ssh) {
         out.push_str(&format!(
             "\nHost {}\n    HostName {}\n",
             h.alias, h.hostname
@@ -38,11 +47,7 @@ pub fn write(hosts: &[Host]) -> Result<()> {
             out.push_str(&format!("    IdentityFile {}\n", h.identity_file));
         }
     }
-    let path = dir.join(MANAGED_FILE);
-    fs::write(&path, out)?;
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
-
-    ensure_include(&dir)
+    out
 }
 
 /// O Include precisa ficar no topo: depois de um `Host`, ele valeria só para aquele bloco.
@@ -148,5 +153,34 @@ pub fn default_key_hint() -> String {
     match newest {
         Some(e) => format!("vazio = ~/.ssh/{}", e.file_name().to_string_lossy()),
         None => "vazio = nenhuma chave em ~/.ssh (rode ssh-keygen)".into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn render_only_ssh_without_passwords() {
+        let ssh = Host {
+            alias: "prod".into(),
+            hostname: "10.0.0.1".into(),
+            user: "root".into(),
+            port: 22,
+            password: "segredo".into(),
+            ..Default::default()
+        };
+        let rdp = Host {
+            kind: Kind::Rdp,
+            alias: "win".into(),
+            hostname: "10.0.0.2".into(),
+            user: "adm".into(),
+            port: 3389,
+            ..Default::default()
+        };
+        let out = render(&[ssh, rdp]);
+        assert!(out.contains("Host prod"));
+        assert!(!out.contains("win"));
+        assert!(!out.contains("segredo"));
     }
 }

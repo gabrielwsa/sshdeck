@@ -1,4 +1,7 @@
-use crate::app::{App, FIELD_LABELS, Form, Mode, PW_FIELD, PwPurpose};
+use crate::{
+    app::{App, Field, Form, Mode, PwPurpose},
+    vault::{Host, Kind},
+};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
@@ -11,6 +14,40 @@ use tui_term::widget::{Cursor, PseudoTerminal};
 const ACCENT: Color = Color::Cyan;
 /// nf-fa-key (Nerd Fonts) — marca hosts com senha salva
 const KEY_ICON: &str = "\u{f084}";
+/// nf-fa-terminal / nf-fa-windows — tipo do host
+const SSH_ICON: &str = "\u{f120}";
+const RDP_ICON: &str = "\u{f17a}";
+
+/// Ícone do tipo: verde quando há conexão aberta (negrito se for a ativa).
+fn kind_icon(h: &Host, connected: bool, active: bool) -> Span<'static> {
+    let icon = match h.kind {
+        Kind::Ssh => SSH_ICON,
+        Kind::Rdp => RDP_ICON,
+    };
+    let style = match (connected, active) {
+        (true, true) => Style::new().fg(Color::Green).bold(),
+        (true, false) => Style::new().fg(Color::Green),
+        _ => Style::new().dark_gray(),
+    };
+    Span::styled(icon, style)
+}
+
+/// Coluna "Extra" da lista: chave do SSH ou domínio/túnel do RDP.
+fn extra(h: &Host) -> String {
+    match h.kind {
+        Kind::Ssh => h.identity_file.clone(),
+        Kind::Rdp => {
+            let mut parts = Vec::new();
+            if !h.domain.is_empty() {
+                parts.push(format!("domínio {}", h.domain));
+            }
+            if !h.gateway.is_empty() {
+                parts.push(format!("via {}", h.gateway));
+            }
+            parts.join(" · ")
+        }
+    }
+}
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     let [main, footer] =
@@ -56,7 +93,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         Mode::ConfirmQuit => draw_confirm(
             f,
             " Sair ",
-            &format!("Sair e encerrar {} sessão(ões) ssh?", app.sessions.len()),
+            &format!("Sair e fechar {} conexão(ões) abertas?", app.open_count()),
         ),
         Mode::Help => draw_help(f),
         _ => {}
@@ -73,12 +110,13 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
             Span::raw(KEY_ICON)
         };
         Row::new(vec![
+            Cell::from(kind_icon(h, app.has_session(&h.alias), false)),
             Cell::from(key),
             Cell::from(h.alias.clone()).bold(),
             Cell::from(h.user.clone()),
             Cell::from(h.hostname.clone()),
             Cell::from(h.port.to_string()),
-            Cell::from(h.identity_file.clone()).dim(),
+            Cell::from(extra(h)).dim(),
         ])
     });
 
@@ -98,7 +136,8 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
     let table = Table::new(
         rows,
         [
-            Constraint::Length(2),
+            Constraint::Length(1),
+            Constraint::Length(1),
             Constraint::Min(12),
             Constraint::Min(10),
             Constraint::Min(15),
@@ -107,16 +146,9 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
         ],
     )
     .header(
-        Row::new(vec![
-            "",
-            "Alias",
-            "User",
-            "Host / IP",
-            "Port",
-            "IdentityFile",
-        ])
-        .style(Style::new().fg(ACCENT).add_modifier(Modifier::BOLD))
-        .bottom_margin(1),
+        Row::new(vec!["", "", "Alias", "User", "Host / IP", "Port", "Extra"])
+            .style(Style::new().fg(ACCENT).add_modifier(Modifier::BOLD))
+            .bottom_margin(1),
     )
     .row_highlight_style(
         Style::new()
@@ -168,16 +200,10 @@ fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
         .iter()
         .map(|&i| {
             let h = &app.store.hosts[i];
-            let (mark, style) = if Some(&h.alias) == active_alias.as_ref() {
-                ("●", Style::new().fg(Color::Green).bold())
-            } else if app.has_session(&h.alias) {
-                ("●", Style::new().fg(Color::Green))
-            } else {
-                ("○", Style::new().dark_gray())
-            };
+            let active = Some(&h.alias) == active_alias.as_ref();
             let key = if h.password.is_empty() { "" } else { KEY_ICON };
             Row::new(vec![
-                Cell::from(Span::styled(mark, style)),
+                Cell::from(kind_icon(h, app.has_session(&h.alias), active)),
                 Cell::from(key),
                 Cell::from(h.alias.clone()).bold(),
                 Cell::from(h.hostname.clone()).dim(),
@@ -331,6 +357,12 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
                 },
             ),
         ],
+        Mode::Form(form) if form.focused() == Field::Kind => &[
+            ("←/→ ou espaço", "SSH/RDP"),
+            ("Tab/↓", "próximo"),
+            ("Ctrl+S", "salvar"),
+            ("Esc", "cancelar"),
+        ],
         Mode::Form(_) => &[
             ("Tab/↓", "próximo"),
             ("Shift+Tab/↑", "anterior"),
@@ -361,6 +393,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         ],
         Mode::List => &[
             ("Enter", "conectar"),
+            ("x", "fechar"),
             ("s", "tela cheia"),
             ("K", "ssh-copy-id"),
             ("c", "copiar senha"),
@@ -456,21 +489,18 @@ fn draw_password(
 }
 
 fn draw_form(f: &mut Frame, form: &Form) {
-    let area = centered(f.area(), 80, (FIELD_LABELS.len() * 2 + 5) as u16);
+    let fields = form.fields();
+    let area = centered(f.area(), 84, fields.len() as u16 + 5);
     f.render_widget(Clear, area);
     let title = if form.editing.is_some() {
         " Editar host "
     } else {
         " Novo host "
     };
-    let mut lines = Vec::new();
-    for (i, label) in FIELD_LABELS.iter().enumerate() {
+    let port_hint = form.default_port().to_string();
+    let mut lines = vec![Line::from("")];
+    for (i, &field) in fields.iter().enumerate() {
         let focused = i == form.focus;
-        let value = if i == PW_FIELD && !form.show_pw {
-            "•".repeat(form.fields[i].chars().count())
-        } else {
-            form.fields[i].clone()
-        };
         let label_style = if focused {
             Style::new().fg(ACCENT).bold()
         } else {
@@ -478,27 +508,56 @@ fn draw_form(f: &mut Frame, form: &Form) {
         };
         let mut spans = vec![
             Span::styled(if focused { "▶ " } else { "  " }, label_style),
-            Span::styled(format!("{label:<15}"), label_style),
+            Span::styled(format!("{:<16}", field.label()), label_style),
         ];
-        let placeholder = match i {
-            3 => Some("22"),
-            4 => Some(form.identity_hint.as_str()),
+
+        if field == Field::Kind {
+            for (k, name) in [(Kind::Ssh, " SSH "), (Kind::Rdp, " RDP ")] {
+                spans.push(if form.kind == k {
+                    Span::styled(name, Style::new().fg(Color::Black).bg(ACCENT).bold())
+                } else {
+                    Span::raw(name).dark_gray()
+                });
+                spans.push(Span::raw(" "));
+            }
+            if focused {
+                spans.push(Span::raw(" ←/→ troca").dark_gray());
+            }
+            lines.push(Line::from(spans));
+            continue;
+        }
+
+        let raw = form.value(field);
+        let value = if field == Field::Password && !form.show_pw {
+            "•".repeat(raw.chars().count())
+        } else {
+            raw.to_string()
+        };
+        let placeholder = match field {
+            Field::Port => Some(port_hint.as_str()),
+            Field::IdentityFile => Some(form.identity_hint.as_str()),
+            Field::Domain => Some("vazio = conta local"),
+            Field::Resolution => {
+                Some("vazio = janela 80% redimensionável · full · 1920x1080 · 90%")
+            }
+            Field::Share => Some("vazio = nenhuma · ex.: ~/Downloads"),
+            Field::Gateway => Some("vazio = conexão direta · ex.: alias de um host SSH"),
             _ => None,
         };
         // com placeholder, o cursor fica antes do texto cinza (o campo está vazio)
-        if focused && value.is_empty() {
+        if focused && raw.is_empty() {
             spans.push(Span::styled("▏", Style::new().fg(ACCENT)));
         }
         match placeholder {
-            Some(p) if value.is_empty() => spans.push(Span::raw(p.to_string()).dark_gray()),
+            Some(p) if raw.is_empty() => spans.push(Span::raw(p.to_string()).dark_gray()),
             _ => spans.push(Span::raw(value)),
         }
-        if focused && !form.fields[i].is_empty() {
+        if focused && !raw.is_empty() {
             spans.push(Span::styled("▏", Style::new().fg(ACCENT)));
         }
         lines.push(Line::from(spans));
-        lines.push(Line::from(""));
     }
+    lines.push(Line::from(""));
     match &form.error {
         Some(e) => lines.push(Line::from(Span::styled(
             format!("  {e}"),
@@ -530,10 +589,13 @@ fn draw_confirm(f: &mut Frame, title: &str, question: &str) {
 
 fn draw_help(f: &mut Frame) {
     let rows = [
-        ("Enter", "conecta no painel central (e copia a senha)"),
+        (
+            "Enter",
+            "conecta: SSH no painel central, RDP em janela própria",
+        ),
         ("s", "conecta em tela cheia (ssh normal)"),
         ("Tab / l", "vai para o terminal"),
-        ("x", "fecha a sessão do host selecionado"),
+        ("x", "fecha a sessão (ou a janela RDP) do host"),
         (
             "K",
             "ssh-copy-id: instala sua chave no servidor (usa a senha salva)",

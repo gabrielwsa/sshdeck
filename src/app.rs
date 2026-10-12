@@ -1,8 +1,9 @@
 use crate::{
     clipboard::Clip,
+    rdp::{self, RdpSession},
     session::Session,
     sshconfig,
-    vault::{Host, Store, Vault},
+    vault::{Host, Kind, Store, Vault},
 };
 use anyhow::{Result, bail};
 use ratatui::{
@@ -32,27 +33,77 @@ pub enum Mode {
     },
     List,
     Filter,
-    Form(Form),
+    Form(Box<Form>),
     ConfirmDelete(usize),
     ConfirmQuit,
     Help,
 }
 
-pub const FIELD_LABELS: [&str; 7] = [
-    "Alias",
-    "HostName / IP",
-    "User",
-    "Port",
-    "IdentityFile",
-    "Password",
-    "Notas",
+#[derive(Clone, Copy, PartialEq)]
+pub enum Field {
+    Kind,
+    Alias,
+    HostName,
+    User,
+    Domain,
+    Port,
+    IdentityFile,
+    Resolution,
+    Share,
+    Gateway,
+    Password,
+    Notes,
+}
+
+impl Field {
+    pub fn label(self) -> &'static str {
+        match self {
+            Field::Kind => "Tipo",
+            Field::Alias => "Alias",
+            Field::HostName => "HostName / IP",
+            Field::User => "User",
+            Field::Domain => "Domínio",
+            Field::Port => "Port",
+            Field::IdentityFile => "IdentityFile",
+            Field::Resolution => "Resolução",
+            Field::Share => "Pasta compart.",
+            Field::Gateway => "Túnel SSH via",
+            Field::Password => "Password",
+            Field::Notes => "Notas",
+        }
+    }
+}
+
+const SSH_FIELDS: &[Field] = &[
+    Field::Kind,
+    Field::Alias,
+    Field::HostName,
+    Field::User,
+    Field::Port,
+    Field::IdentityFile,
+    Field::Password,
+    Field::Notes,
 ];
-pub const PW_FIELD: usize = 5;
-pub const NOTES_FIELD: usize = 6;
+const RDP_FIELDS: &[Field] = &[
+    Field::Kind,
+    Field::Alias,
+    Field::HostName,
+    Field::User,
+    Field::Domain,
+    Field::Port,
+    Field::Resolution,
+    Field::Share,
+    Field::Gateway,
+    Field::Password,
+    Field::Notes,
+];
 
 pub struct Form {
     pub editing: Option<usize>,
-    pub fields: [String; 7],
+    pub kind: Kind,
+    /// valores indexados por `Field as usize`
+    values: [String; 12],
+    /// índice em `fields()`
     pub focus: usize,
     pub show_pw: bool,
     pub error: Option<String>,
@@ -62,10 +113,10 @@ pub struct Form {
 
 impl Form {
     fn new() -> Self {
-        let fields: [String; 7] = Default::default();
         Self {
             editing: None,
-            fields,
+            kind: Kind::Ssh,
+            values: Default::default(),
             focus: 0,
             show_pw: false,
             error: None,
@@ -74,52 +125,108 @@ impl Form {
     }
 
     fn from_host(idx: usize, h: &Host) -> Self {
-        Self {
-            editing: Some(idx),
-            fields: [
-                h.alias.clone(),
-                h.hostname.clone(),
-                h.user.clone(),
-                h.port.to_string(),
-                h.identity_file.clone(),
-                h.password.clone(),
-                h.notes.clone(),
-            ],
-            focus: 0,
-            show_pw: false,
-            error: None,
-            identity_hint: sshconfig::default_key_hint(),
+        let mut f = Self::new();
+        f.editing = Some(idx);
+        f.kind = h.kind;
+        for (field, v) in [
+            (Field::Alias, &h.alias),
+            (Field::HostName, &h.hostname),
+            (Field::User, &h.user),
+            (Field::Domain, &h.domain),
+            (Field::IdentityFile, &h.identity_file),
+            (Field::Resolution, &h.resolution),
+            (Field::Share, &h.share),
+            (Field::Gateway, &h.gateway),
+            (Field::Password, &h.password),
+            (Field::Notes, &h.notes),
+        ] {
+            *f.value_mut(field) = v.clone();
+        }
+        *f.value_mut(Field::Port) = h.port.to_string();
+        f
+    }
+
+    pub fn fields(&self) -> &'static [Field] {
+        match self.kind {
+            Kind::Ssh => SSH_FIELDS,
+            Kind::Rdp => RDP_FIELDS,
         }
     }
 
+    pub fn focused(&self) -> Field {
+        self.fields()[self.focus]
+    }
+
+    pub fn value(&self, f: Field) -> &str {
+        &self.values[f as usize]
+    }
+
+    fn value_mut(&mut self, f: Field) -> &mut String {
+        &mut self.values[f as usize]
+    }
+
+    pub fn default_port(&self) -> u16 {
+        match self.kind {
+            Kind::Ssh => 22,
+            Kind::Rdp => rdp::DEFAULT_PORT,
+        }
+    }
+
+    fn toggle_kind(&mut self) {
+        // a porta padrão acompanha o tipo
+        let port = self.value(Field::Port).trim().to_string();
+        if port == self.default_port().to_string() {
+            self.value_mut(Field::Port).clear();
+        }
+        self.kind = match self.kind {
+            Kind::Ssh => Kind::Rdp,
+            Kind::Rdp => Kind::Ssh,
+        };
+    }
+
     fn to_host(&self) -> Result<Host> {
-        let f = |i: usize| self.fields[i].trim().to_string();
-        let alias = f(0);
+        let f = |field: Field| self.value(field).trim().to_string();
+        let alias = f(Field::Alias);
         if alias.is_empty() {
             bail!("Alias é obrigatório");
         }
-        if alias.contains(char::is_whitespace) || alias.contains(['*', '?', '!', '#']) {
-            bail!("Alias não pode ter espaços nem * ? ! #");
+        if alias.contains(char::is_whitespace) || alias.contains(['*', '?', '!', '#', '/']) {
+            bail!("Alias não pode ter espaços nem * ? ! # /");
         }
-        let hostname = f(1);
+        let hostname = f(Field::HostName);
         if hostname.is_empty() || hostname.contains(char::is_whitespace) {
             bail!("HostName / IP inválido");
         }
-        let port = if f(3).is_empty() {
-            22
+        let port = if f(Field::Port).is_empty() {
+            self.default_port()
         } else {
-            f(3).parse::<u16>()
+            f(Field::Port)
+                .parse::<u16>()
                 .map_err(|_| anyhow::anyhow!("Porta inválida"))?
         };
+        let rdp = self.kind == Kind::Rdp;
+        if rdp && f(Field::User).is_empty() {
+            bail!("RDP precisa de User");
+        }
+        if rdp && !rdp::valid_resolution(&f(Field::Resolution)) {
+            bail!("Resolução inválida: use vazio, full, 1920x1080 ou 90%");
+        }
+        // campos que não pertencem ao tipo não são guardados
+        let only = |cond: bool, field: Field| if cond { f(field) } else { String::new() };
         Ok(Host {
+            kind: self.kind,
             alias,
             hostname,
-            user: f(2),
+            user: f(Field::User),
             port,
-            identity_file: f(4),
+            identity_file: only(!rdp, Field::IdentityFile),
             // senha não é trimada: espaços podem fazer parte dela
-            password: self.fields[PW_FIELD].clone(),
-            notes: f(NOTES_FIELD),
+            password: self.value(Field::Password).to_string(),
+            notes: f(Field::Notes),
+            domain: only(rdp, Field::Domain),
+            resolution: only(rdp, Field::Resolution),
+            share: only(rdp, Field::Share),
+            gateway: only(rdp, Field::Gateway),
         })
     }
 }
@@ -148,6 +255,8 @@ pub struct App {
     pub pending: Option<External>,
     /// sessões ssh embutidas (workspace)
     pub sessions: Vec<Session>,
+    /// janelas do FreeRDP abertas pelo sshdeck
+    pub rdp_sessions: Vec<RdpSession>,
     pub active: usize,
     /// teclas vão para o terminal da sessão ativa
     pub term_focus: bool,
@@ -182,6 +291,7 @@ impl App {
             quit: false,
             pending: None,
             sessions: Vec::new(),
+            rdp_sessions: Vec::new(),
             active: 0,
             term_focus: false,
             term_size: (24, 80),
@@ -198,6 +308,21 @@ impl App {
             && t.elapsed() > Duration::from_secs(6)
         {
             self.status = None;
+        }
+
+        // acompanha as janelas RDP (túnel subindo, janela fechada, erro)
+        let mut i = 0;
+        while i < self.rdp_sessions.len() {
+            match self.rdp_sessions[i].poll() {
+                None => i += 1,
+                Some(result) => {
+                    let s = self.rdp_sessions.remove(i);
+                    match result {
+                        Ok(()) => self.set_status(format!("RDP {} fechado", s.alias)),
+                        Err(e) => self.set_status(format!("RDP {}: {e}", s.alias)),
+                    }
+                }
+            }
         }
 
         // remove sessões cujo ssh terminou
@@ -232,9 +357,42 @@ impl App {
 
     pub fn has_session(&self, alias: &str) -> bool {
         self.sessions.iter().any(|s| s.alias == alias)
+            || self.rdp_sessions.iter().any(|s| s.alias == alias)
+    }
+
+    /// Total de conexões abertas (ssh embutido + janelas RDP).
+    pub fn open_count(&self) -> usize {
+        self.sessions.len() + self.rdp_sessions.len()
+    }
+
+    fn open_rdp(&mut self, idx: usize) {
+        let host = &self.store.hosts[idx];
+        if self.rdp_sessions.iter().any(|s| s.alias == host.alias) {
+            return self.set_status(format!("RDP {} já está aberto", host.alias));
+        }
+        let gateway = (!host.gateway.is_empty())
+            .then(|| self.host_by_alias(&host.gateway))
+            .flatten();
+        if !host.gateway.is_empty() && gateway.is_none() {
+            return self.set_status(format!("Túnel SSH via '{}': host não existe", host.gateway));
+        }
+        match RdpSession::start(host, gateway) {
+            Ok(s) => {
+                self.set_status(if s.via_tunnel() {
+                    format!("Abrindo túnel via {} e RDP {}…", host.gateway, host.alias)
+                } else {
+                    format!("Abrindo RDP {}…", host.alias)
+                });
+                self.rdp_sessions.push(s);
+            }
+            Err(e) => self.set_status(format!("Falha no RDP: {e:#}")),
+        }
     }
 
     fn open_session(&mut self, idx: usize) {
+        if self.store.hosts[idx].kind == Kind::Rdp {
+            return self.open_rdp(idx);
+        }
         let alias = self.store.hosts[idx].alias.clone();
         if let Some(pos) = self.sessions.iter().position(|s| s.alias == alias) {
             self.active = pos;
@@ -279,7 +437,7 @@ impl App {
     }
 
     fn request_quit(&mut self) {
-        if self.sessions.is_empty() {
+        if self.open_count() == 0 {
             self.quit = true;
         } else {
             self.mode = Mode::ConfirmQuit;
@@ -401,7 +559,12 @@ impl App {
         }
         let text = text.trim_end_matches(['\n', '\r']);
         match &mut self.mode {
-            Mode::Form(f) => f.fields[f.focus].push_str(text),
+            Mode::Form(f) => {
+                let field = f.focused();
+                if field != Field::Kind {
+                    f.value_mut(field).push_str(text);
+                }
+            }
             Mode::Password { input, .. } => input.push_str(text),
             Mode::Filter => {
                 self.filter.push_str(text);
@@ -528,15 +691,28 @@ impl App {
                 self.follow_selection();
                 self.term_focus = true;
             }
-            KeyCode::Char('x') if workspace => {
+            KeyCode::Char('x') => {
                 if let Some(i) = self.selected_host() {
                     let alias = self.store.hosts[i].alias.clone();
                     if let Some(pos) = self.sessions.iter().position(|s| s.alias == alias) {
                         self.sessions.remove(pos);
                         self.active = self.active.min(self.sessions.len().saturating_sub(1));
                         self.set_status(format!("Sessão {alias} fechada"));
+                    } else if let Some(pos) =
+                        self.rdp_sessions.iter().position(|s| s.alias == alias)
+                    {
+                        // Drop fecha a janela do FreeRDP e o túnel
+                        self.rdp_sessions.remove(pos);
+                        self.set_status(format!("RDP {alias} fechado"));
                     }
                 }
+            }
+            KeyCode::Char('s') | KeyCode::Char('K')
+                if self
+                    .selected_host()
+                    .is_some_and(|i| self.store.hosts[i].kind == Kind::Rdp) =>
+            {
+                self.set_status("Esse atalho é só para hosts SSH");
             }
             KeyCode::Char('s') => {
                 if let Some(i) = self.selected_host() {
@@ -568,10 +744,10 @@ impl App {
             KeyCode::End | KeyCode::Char('G') if n > 0 => self.table.select(Some(n - 1)),
             KeyCode::Char('/') => self.mode = Mode::Filter,
             KeyCode::Char('?') => self.mode = Mode::Help,
-            KeyCode::Char('a') => self.mode = Mode::Form(Form::new()),
+            KeyCode::Char('a') => self.mode = Mode::Form(Box::new(Form::new())),
             KeyCode::Char('e') => {
                 if let Some(i) = self.selected_host() {
-                    self.mode = Mode::Form(Form::from_host(i, &self.store.hosts[i]));
+                    self.mode = Mode::Form(Box::new(Form::from_host(i, &self.store.hosts[i])));
                 }
             }
             KeyCode::Char('d') | KeyCode::Delete => {
@@ -635,7 +811,9 @@ impl App {
             return;
         };
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-        let last = FIELD_LABELS.len() - 1;
+        let n = f.fields().len();
+        let field = f.focused();
+        let on_kind = field == Field::Kind;
         match key.code {
             KeyCode::Esc => {
                 self.mode = Mode::List;
@@ -647,28 +825,33 @@ impl App {
                 return;
             }
             KeyCode::Char('u') if ctrl => {
-                f.fields[f.focus].clear();
+                f.value_mut(field).clear();
                 return;
             }
             KeyCode::Tab | KeyCode::Down => {
-                f.focus = (f.focus + 1) % FIELD_LABELS.len();
+                f.focus = (f.focus + 1) % n;
                 return;
             }
             KeyCode::BackTab | KeyCode::Up => {
-                f.focus = (f.focus + last) % FIELD_LABELS.len();
+                f.focus = (f.focus + n - 1) % n;
                 return;
             }
-            KeyCode::Enter if f.focus < last => {
+            // o campo Tipo alterna entre SSH e RDP
+            KeyCode::Left | KeyCode::Right | KeyCode::Char(' ') if on_kind => {
+                f.toggle_kind();
+                return;
+            }
+            KeyCode::Enter if f.focus < n - 1 => {
                 f.focus += 1;
                 return;
             }
             KeyCode::Enter => {}
-            KeyCode::Backspace => {
-                f.fields[f.focus].pop();
+            KeyCode::Backspace if !on_kind => {
+                f.value_mut(field).pop();
                 return;
             }
-            KeyCode::Char(c) => {
-                f.fields[f.focus].push(c);
+            KeyCode::Char(c) if !on_kind && !ctrl => {
+                f.value_mut(field).push(c);
                 return;
             }
             _ => return,
@@ -692,6 +875,21 @@ impl App {
         if dup {
             f.error = Some(format!("Já existe um host com alias '{}'", host.alias));
             return;
+        }
+        if !host.gateway.is_empty() {
+            let ok = host.gateway != host.alias
+                && self
+                    .store
+                    .hosts
+                    .iter()
+                    .any(|h| h.alias == host.gateway && h.kind == Kind::Ssh);
+            if !ok {
+                f.error = Some(format!(
+                    "Túnel SSH via: '{}' não é um host SSH cadastrado",
+                    host.gateway
+                ));
+                return;
+            }
         }
         let alias = host.alias.clone();
         match editing {

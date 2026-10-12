@@ -9,6 +9,9 @@ use std::{
 };
 
 pub const PASSWORD_ENV: &str = "SSHDECK_ASKPASS_PW";
+/// definido quando não há terminal livre (túnel do RDP em segundo plano):
+/// qualquer pergunta que não seja a senha falha em vez de esperar resposta
+pub const NO_TTY_ENV: &str = "SSHDECK_ASKPASS_NOTTY";
 
 /// Se o processo foi chamado como askpass, responde e devolve o código de saída.
 pub fn run_if_requested() -> Option<i32> {
@@ -19,6 +22,8 @@ pub fn run_if_requested() -> Option<i32> {
     // "user@host's password:" — mas não "passphrase" de chave privada
     let answer = if lower.contains("password") && !lower.contains("passphrase") {
         Ok(password)
+    } else if std::env::var_os(NO_TTY_ENV).is_some() {
+        Err(io::Error::other("sem terminal para responder"))
     } else {
         // ex.: confirmar fingerprint de host novo (yes/no), passphrase de chave
         let secret = lower.contains("passphrase") || lower.contains("pin");

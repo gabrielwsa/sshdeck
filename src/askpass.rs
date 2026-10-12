@@ -1,5 +1,5 @@
-//! O próprio clissh serve de SSH_ASKPASS: quando o ssh (ou ssh-copy-id) precisa da senha,
-//! chama o executável do clissh com o prompt como argumento, e ele responde com a senha
+//! O próprio sshdeck serve de SSH_ASKPASS: quando o ssh (ou ssh-copy-id) precisa da senha,
+//! chama o executável do sshdeck com o prompt como argumento, e ele responde com a senha
 //! recebida pela variável de ambiente. Outras perguntas vão para o usuário no terminal.
 
 use std::{
@@ -8,7 +8,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-pub const PASSWORD_ENV: &str = "CLISSH_ASKPASS_PW";
+pub const PASSWORD_ENV: &str = "SSHDECK_ASKPASS_PW";
 
 /// Se o processo foi chamado como askpass, responde e devolve o código de saída.
 pub fn run_if_requested() -> Option<i32> {

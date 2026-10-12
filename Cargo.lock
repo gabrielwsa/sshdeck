@@ -279,26 +279,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "clissh"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arboard",
- "argon2",
- "base64 0.23.1",
- "chacha20poly1305",
- "dirs",
- "portable-pty",
- "rand",
- "ratatui",
- "serde",
- "serde_json",
- "tui-term",
- "vt100",
- "zeroize",
-]
-
-[[package]]
 name = "cmov"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1985,6 +1965,26 @@ name = "smallvec"
 version = "1.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b3dc8af474f516a851ff4bd12db780f948b9250ad37211e4eec0bccea54e01b"
+
+[[package]]
+name = "sshdeck"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "argon2",
+ "base64 0.23.1",
+ "chacha20poly1305",
+ "dirs",
+ "portable-pty",
+ "rand",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "tui-term",
+ "vt100",
+ "zeroize",
+]
 
 [[package]]
 name = "stacker"

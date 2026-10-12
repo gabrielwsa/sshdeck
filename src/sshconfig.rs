@@ -1,4 +1,4 @@
-//! Geração de ~/.ssh/clissh.conf e import do ~/.ssh/config existente.
+//! Geração de ~/.ssh/sshdeck.conf e import do ~/.ssh/config existente.
 
 use crate::vault::Host;
 use anyhow::{Context, Result};
@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const MANAGED_FILE: &str = "clissh.conf";
+const MANAGED_FILE: &str = "sshdeck.conf";
 
 fn ssh_dir() -> Result<PathBuf> {
     Ok(dirs::home_dir()
@@ -24,7 +24,7 @@ pub fn write(hosts: &[Host]) -> Result<()> {
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
     }
 
-    let mut out = String::from("# Gerado pelo clissh — não edite à mão, use o clissh.\n");
+    let mut out = String::from("# Gerado pelo sshdeck — não edite à mão, use o sshdeck.\n");
     for h in hosts {
         out.push_str(&format!(
             "\nHost {}\n    HostName {}\n",
@@ -57,7 +57,7 @@ fn ensure_include(dir: &Path) -> Result<()> {
         return Ok(());
     }
     if config.exists() {
-        let backup = dir.join("config.clissh.bak");
+        let backup = dir.join("config.sshdeck.bak");
         if !backup.exists() {
             fs::copy(&config, &backup)?;
         }
@@ -68,7 +68,7 @@ fn ensure_include(dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Lê os blocos `Host` do ~/.ssh/config (ignora curingas e o arquivo do clissh).
+/// Lê os blocos `Host` do ~/.ssh/config (ignora curingas e o arquivo do sshdeck).
 pub fn import_existing() -> Result<Vec<Host>> {
     let config = ssh_dir()?.join("config");
     let text = fs::read_to_string(&config).unwrap_or_default();

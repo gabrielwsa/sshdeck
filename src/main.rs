@@ -124,7 +124,7 @@ fn suspended<T>(terminal: &mut DefaultTerminal, f: impl FnOnce() -> T) -> Result
     Ok(out)
 }
 
-/// Roda ssh-copy-id preenchendo a senha salva via SSH_ASKPASS (o próprio clissh).
+/// Roda ssh-copy-id preenchendo a senha salva via SSH_ASKPASS (o próprio sshdeck).
 fn copy_id(alias: &str, identity: &str, password: &str) -> std::io::Result<bool> {
     let mut cmd = Command::new("ssh-copy-id");
     if !identity.is_empty() {
@@ -145,7 +145,7 @@ fn copy_id(alias: &str, identity: &str, password: &str) -> std::io::Result<bool>
     println!("→ ssh-copy-id {alias}\n");
     let ok = cmd.status()?.success();
     println!(
-        "\n{} — Enter para voltar ao clissh",
+        "\n{} — Enter para voltar ao sshdeck",
         if ok { "Pronto" } else { "Falhou" }
     );
     let _ = std::io::stdin().lock().read_line(&mut String::new());

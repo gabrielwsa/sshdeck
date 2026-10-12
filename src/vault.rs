@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::{fs, io::Write, os::unix::fs::PermissionsExt, path::PathBuf};
 use zeroize::Zeroizing;
 
-const MAGIC: &[u8; 6] = b"CLSSH1";
+const MAGIC: &[u8; 6] = b"SSHDK1";
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 24;
 
@@ -43,7 +43,7 @@ impl Vault {
     pub fn default_path() -> PathBuf {
         dirs::data_dir()
             .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".local/share"))
-            .join("clissh")
+            .join("sshdeck")
             .join("vault.bin")
     }
 
@@ -138,7 +138,7 @@ mod tests {
 
     #[test]
     fn roundtrip_and_wrong_password() {
-        let dir = std::env::temp_dir().join(format!("clissh-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("sshdeck-test-{}", std::process::id()));
         let path = dir.join("vault.bin");
         let v = Vault::create(path.clone(), "mestra").unwrap();
         let store = Store {

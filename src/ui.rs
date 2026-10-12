@@ -82,7 +82,7 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
         ])
     });
 
-    let mut title = vec![Span::styled(" clissh ", Style::new().fg(ACCENT).bold())];
+    let mut title = vec![Span::styled(" sshdeck ", Style::new().fg(ACCENT).bold())];
     title.push(Span::raw(format!("· {} hosts ", app.store.hosts.len())));
     if !app.filter.is_empty() || matches!(app.mode, Mode::Filter) {
         title.push(Span::styled(

@@ -1,0 +1,16 @@
+# build do Rust
+/target
+
+# cofre e arquivos sensíveis, caso algum dia parem dentro do projeto
+*.bin
+*.tmp
+*.bak
+.env
+.env.*
+
+# editores e sistema
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store

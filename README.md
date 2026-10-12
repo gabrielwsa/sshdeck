@@ -11,7 +11,7 @@ cargo install --path .
 sshdeck
 ```
 
-Use uma [Nerd Font](https://www.nerdfonts.com/) no terminal: o ícone  (`nf-fa-key`) marca os
+Use uma [Nerd Font](https://www.nerdfonts.com/) no terminal: o ícone  (`nf-fa-lock`) marca os
 hosts com senha salva,  (`nf-fa-terminal`) os hosts SSH e  (`nf-fa-windows`) os RDP.
 
 Para RDP, instale o FreeRDP 3 (`pacman -S freerdp`).
@@ -107,7 +107,7 @@ alias existir nos dois arquivos, vale o do sshdeck.
 - Os atalhos do contexto atual ficam sempre visíveis no rodapé, e as mensagens aparecem no canto
   da borda.
 - `?` abre a ajuda completa.
-- Hosts com senha salva levam o ícone de chave do Nerd Fonts.
+- Hosts com senha salva levam o ícone de cadeado do Nerd Fonts.
 
 ## Teclas
 

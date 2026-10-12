@@ -12,8 +12,8 @@ use ratatui::{
 use tui_term::widget::{Cursor, PseudoTerminal};
 
 const ACCENT: Color = Color::Cyan;
-/// nf-fa-key (Nerd Fonts) — marca hosts com senha salva
-const KEY_ICON: &str = "\u{f084}";
+/// nf-fa-lock (Nerd Fonts) — marca hosts com senha salva
+const KEY_ICON: &str = "\u{f023}";
 /// nf-fa-terminal / nf-fa-windows — tipo do host
 const SSH_ICON: &str = "\u{f120}";
 const RDP_ICON: &str = "\u{f17a}";

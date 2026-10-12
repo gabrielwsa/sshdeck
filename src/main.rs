@@ -1,6 +1,7 @@
 mod app;
 mod askpass;
 mod clipboard;
+mod rdp;
 mod session;
 mod sshconfig;
 mod ui;
@@ -70,9 +71,10 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()> {
             }
             needs_draw = true;
         }
-        let before = (app.sessions.len(), app.status.is_some());
+        let snapshot = |a: &App| (a.open_count(), a.status.as_ref().map(|s| s.1));
+        let before = snapshot(&app);
         app.tick();
-        needs_draw |= before != (app.sessions.len(), app.status.is_some());
+        needs_draw |= before != snapshot(&app);
 
         if let Some(ext) = app.pending.take() {
             let msg = match ext {

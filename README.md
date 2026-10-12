@@ -1,7 +1,8 @@
 # sshdeck
 
-Gestor de SSH no terminal (Rust + ratatui): cadastra hosts (alias, IP, user, porta, chave),
+Gestor de SSH e RDP no terminal (Rust + ratatui): cadastra hosts (alias, IP, user, porta, chave),
 gera o `~/.ssh/config` e guarda as senhas criptografadas para usar no servidor (`sudo su` etc.).
+Hosts Windows abrem por RDP (FreeRDP), com a senha preenchida e túnel SSH opcional.
 
 ## Instalar
 
@@ -11,7 +12,9 @@ sshdeck
 ```
 
 Use uma [Nerd Font](https://www.nerdfonts.com/) no terminal: o ícone  (`nf-fa-key`) marca os
-hosts com senha salva.
+hosts com senha salva,  (`nf-fa-terminal`) os hosts SSH e  (`nf-fa-windows`) os RDP.
+
+Para RDP, instale o FreeRDP 3 (`pacman -S freerdp`).
 
 ## Onde ficam as coisas
 
@@ -21,6 +24,8 @@ hosts com senha salva.
 | Config SSH gerada | `~/.ssh/sshdeck.conf` | `600` | Não, mas **não tem senhas**: só Host, HostName, User, Port e IdentityFile |
 | Seu config SSH | `~/.ssh/config`: o sshdeck só coloca `Include ~/.ssh/sshdeck.conf` na 1ª linha | `600` | Não |
 | Backup do seu config | `~/.ssh/config.sshdeck.bak`, criado uma única vez, antes da 1ª alteração | | Não |
+| Logs do RDP | `~/.cache/sshdeck/rdp-<alias>.log` (mensagens do FreeRDP e do túnel) | pasta `700`, arquivo `600` | Não, mas **não tem senhas** |
+| Certificados RDP aceitos | `~/.config/freerdp/` (gerenciado pelo próprio FreeRDP) | | Não |
 
 Não existe banco de dados separado: **o cofre é o banco**. É um único arquivo com tudo dentro,
 criptografado inteiro. Ou seja, nem os nomes e IPs dos servidores ficam legíveis nele, só no
@@ -69,6 +74,28 @@ alias existir nos dois arquivos, vale o do sshdeck.
   Sem IdentityFile, quem escolhe a chave é o `ssh-copy-id`: as do ssh-agent, se houver; senão o
   `~/.ssh/id*.pub` mais recente.
 
+### RDP (Windows)
+- No formulário, o campo **Tipo** alterna entre SSH e RDP (`←/→` ou espaço). Hosts RDP têm
+  campos próprios: **Domínio**, **Resolução**, **Pasta compartilhada** e **Túnel SSH via**.
+  O **User** é obrigatório e a porta padrão é 3389.
+- `Enter` abre o RDP numa **janela própria** do FreeRDP (`xfreerdp3`, `sdl-freerdp3` ou
+  `wlfreerdp3`, o primeiro instalado; dá para forçar com `SSHDECK_RDP_CLIENT`). Um terminal não
+  consegue desenhar a área de trabalho do Windows, por isso ele não fica no painel central.
+- A senha vai pelo **stdin** do FreeRDP (`/from-stdin`), nunca na linha de comando, onde
+  apareceria no `ps`.
+- **Resolução:** vazio = janela com 80% da tela e redimensionável; `full` = tela cheia;
+  `1920x1080`; ou `90%`.
+- **Pasta compartilhada:** aparece no Windows como a unidade `sshdeck`.
+- **Clipboard** compartilhado entre Linux e Windows (`+clipboard`).
+- **Certificado:** aceito na 1ª conexão e recusado se mudar depois (`/cert:tofu`, igual ao ssh).
+- **Túnel SSH via `<alias>`:** para Windows que só é acessível passando por um servidor Linux.
+  O sshdeck abre `ssh -N -L` por esse host SSH (preenchendo a senha dele), espera o túnel subir e
+  conecta o RDP através dele. A chave do host do túnel precisa já ser conhecida: conecte nele
+  uma vez por SSH antes.
+- Enquanto a janela está aberta, o ícone do host fica verde. `x` fecha a janela (e o túnel).
+  Se o FreeRDP falhar, o erro aparece na tela e os detalhes ficam no log.
+- `s` e `K` são só para hosts SSH.
+
 ### Senhas
 - `Alt+P` (dentro do terminal) **digita a senha direto na sessão**, sem passar pelo clipboard.
   Ideal para `sudo su`.
@@ -86,10 +113,10 @@ alias existir nos dois arquivos, vale o do sshdeck.
 
 | Tecla | Ação |
 |---|---|
-| `Enter` | conecta no painel central (ou vai para a sessão já aberta) |
+| `Enter` | conecta: SSH no painel central (ou vai para a sessão aberta), RDP em janela própria |
 | `s` | conecta em tela cheia (ssh normal, volta ao sair) |
 | `Tab` / `l` | foca o terminal |
-| `x` | fecha a sessão do host selecionado |
+| `x` | fecha a sessão (ou a janela RDP) do host selecionado |
 | `K` | `ssh-copy-id` no host (preenche a senha salva sozinho) |
 | `c` / `y` | copia a senha |
 | `a` / `e` / `d` | adicionar / editar / apagar |
@@ -102,7 +129,8 @@ alias existir nos dois arquivos, vale o do sshdeck.
 No terminal: `Ctrl+]` volta para o painel (a sessão continua), `Alt+P` digita a senha,
 `Alt+←/→` troca de sessão, `Shift+PgUp/PgDn` rola o histórico.
 
-No formulário: `Tab` navega, `Ctrl+S` salva, `Ctrl+R` mostra a senha, `Ctrl+U` limpa o campo.
+No formulário: `Tab` navega, `←/→` no campo Tipo troca SSH/RDP, `Ctrl+S` salva, `Ctrl+R` mostra
+a senha, `Ctrl+U` limpa o campo.
 
 ## Limitações conhecidas
 
@@ -112,5 +140,7 @@ No formulário: `Tab` navega, `Ctrl+S` salva, `Ctrl+R` mostra a senha, `Ctrl+U` 
   só para esse processo. Outros usuários não conseguem lê-la, mas o seu próprio usuário e o root
   conseguem, enquanto o comando roda.
 - No modo OSC 52, o sshdeck não consegue limpar o clipboard depois dos 45s.
+- No túnel do RDP, a senha do host SSH também vai por variável de ambiente para o `ssh` em
+  segundo plano, durante a conexão do túnel.
 - Não há bloqueio automático por inatividade: o cofre fica aberto enquanto o programa estiver
   aberto.

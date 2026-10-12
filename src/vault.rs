@@ -14,8 +14,17 @@ const MAGIC: &[u8; 6] = b"SSHDK1";
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 24;
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
+pub enum Kind {
+    #[default]
+    Ssh,
+    Rdp,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Host {
+    #[serde(default)]
+    pub kind: Kind,
     pub alias: String,
     pub hostname: String,
     pub user: String,
@@ -26,6 +35,18 @@ pub struct Host {
     pub password: String,
     #[serde(default)]
     pub notes: String,
+    // --- só RDP ---
+    #[serde(default)]
+    pub domain: String,
+    /// vazio = janela redimensionável; "full", "1920x1080" ou "90%"
+    #[serde(default)]
+    pub resolution: String,
+    /// pasta local compartilhada com o Windows
+    #[serde(default)]
+    pub share: String,
+    /// alias de um host SSH para abrir túnel até o RDP
+    #[serde(default)]
+    pub gateway: String,
 }
 
 #[derive(Serialize, Deserialize, Default)]

@@ -16,6 +16,18 @@ hosts com senha salva,  (`nf-fa-terminal`) os hosts SSH e  (`nf-fa-windows`) os 
 
 Para RDP, instale o FreeRDP 3 (`pacman -S freerdp`).
 
+## Idiomas
+
+A interface está em **português, inglês e espanhol**. O idioma é escolhido assim, nesta ordem:
+
+1. variável `SSHDECK_LANG` (`pt`, `en` ou `es`), se definida;
+2. a escolha feita com a tecla `L` (abre um popup: `↑/↓` escolhe, `Enter` aplica), que fica salva
+   no cofre;
+3. o idioma do sistema (`LC_ALL`, `LC_MESSAGES` ou `LANG`); se não for nenhum dos três, inglês.
+
+A tela de desbloqueio usa o idioma do sistema, porque a escolha salva fica dentro do cofre.
+As traduções ficam em `locales/app.yml`, com as três línguas lado a lado.
+
 ## Onde ficam as coisas
 
 | O quê | Onde | Permissão | Criptografado? |
@@ -123,6 +135,7 @@ alias existir nos dois arquivos, vale o do sshdeck.
 | `/` | filtrar |
 | `i` | importar hosts do `~/.ssh/config` |
 | `P` | trocar a senha mestra |
+| `L` | escolher o idioma (pt, en, es) |
 | `?` | ajuda |
 | `q` | sair |
 

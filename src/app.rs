@@ -1,5 +1,6 @@
 use crate::{
     clipboard::Clip,
+    lang,
     rdp::{self, RdpSession},
     session::Session,
     sshconfig,
@@ -10,7 +11,9 @@ use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     widgets::TableState,
 };
+use rust_i18n::t;
 use std::{
+    borrow::Cow,
     path::PathBuf,
     sync::{Arc, atomic::AtomicBool},
     time::{Duration, Instant},
@@ -37,6 +40,8 @@ pub enum Mode {
     ConfirmDelete(usize),
     ConfirmQuit,
     Help,
+    /// Popup de idioma; o índice é a linha selecionada em `lang::LANGS`.
+    Lang(usize),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -56,20 +61,20 @@ pub enum Field {
 }
 
 impl Field {
-    pub fn label(self) -> &'static str {
+    pub fn label(self) -> Cow<'static, str> {
         match self {
-            Field::Kind => "Tipo",
-            Field::Alias => "Alias",
-            Field::HostName => "HostName / IP",
-            Field::User => "User",
-            Field::Domain => "Domínio",
-            Field::Port => "Port",
-            Field::IdentityFile => "IdentityFile",
-            Field::Resolution => "Resolução",
-            Field::Share => "Pasta compart.",
-            Field::Gateway => "Túnel SSH via",
-            Field::Password => "Password",
-            Field::Notes => "Notas",
+            Field::Kind => t!("field.kind"),
+            Field::Alias => t!("field.alias"),
+            Field::HostName => t!("field.hostname"),
+            Field::User => t!("field.user"),
+            Field::Domain => t!("field.domain"),
+            Field::Port => t!("field.port"),
+            Field::IdentityFile => t!("field.identity"),
+            Field::Resolution => t!("field.resolution"),
+            Field::Share => t!("field.share"),
+            Field::Gateway => t!("field.gateway"),
+            Field::Password => t!("field.password"),
+            Field::Notes => t!("field.notes"),
         }
     }
 }
@@ -188,28 +193,28 @@ impl Form {
         let f = |field: Field| self.value(field).trim().to_string();
         let alias = f(Field::Alias);
         if alias.is_empty() {
-            bail!("Alias é obrigatório");
+            bail!("{}", t!("err.alias_required"));
         }
         if alias.contains(char::is_whitespace) || alias.contains(['*', '?', '!', '#', '/']) {
-            bail!("Alias não pode ter espaços nem * ? ! # /");
+            bail!("{}", t!("err.alias_chars"));
         }
         let hostname = f(Field::HostName);
         if hostname.is_empty() || hostname.contains(char::is_whitespace) {
-            bail!("HostName / IP inválido");
+            bail!("{}", t!("err.hostname"));
         }
         let port = if f(Field::Port).is_empty() {
             self.default_port()
         } else {
             f(Field::Port)
                 .parse::<u16>()
-                .map_err(|_| anyhow::anyhow!("Porta inválida"))?
+                .map_err(|_| anyhow::anyhow!("{}", t!("err.port")))?
         };
         let rdp = self.kind == Kind::Rdp;
         if rdp && f(Field::User).is_empty() {
-            bail!("RDP precisa de User");
+            bail!("{}", t!("err.rdp_user"));
         }
         if rdp && !rdp::valid_resolution(&f(Field::Resolution)) {
-            bail!("Resolução inválida: use vazio, full, 1920x1080 ou 90%");
+            bail!("{}", t!("err.resolution"));
         }
         // campos que não pertencem ao tipo não são guardados
         let only = |cond: bool, field: Field| if cond { f(field) } else { String::new() };
@@ -318,8 +323,8 @@ impl App {
                 Some(result) => {
                     let s = self.rdp_sessions.remove(i);
                     match result {
-                        Ok(()) => self.set_status(format!("RDP {} fechado", s.alias)),
-                        Err(e) => self.set_status(format!("RDP {}: {e}", s.alias)),
+                        Ok(()) => self.set_status(t!("st.rdp_closed", alias = s.alias)),
+                        Err(e) => self.set_status(t!("st.rdp_error", alias = s.alias, err = e)),
                     }
                 }
             }
@@ -337,7 +342,7 @@ impl App {
                     true
                 }
             });
-            self.set_status(format!("Sessão encerrada: {}", closed.join(", ")));
+            self.set_status(t!("st.sessions_ended", list = closed.join(", ")));
             self.active = active_alias
                 .and_then(|a| self.sessions.iter().position(|s| s.alias == a))
                 .unwrap_or(0);
@@ -368,24 +373,28 @@ impl App {
     fn open_rdp(&mut self, idx: usize) {
         let host = &self.store.hosts[idx];
         if self.rdp_sessions.iter().any(|s| s.alias == host.alias) {
-            return self.set_status(format!("RDP {} já está aberto", host.alias));
+            return self.set_status(t!("st.rdp_already", alias = host.alias));
         }
         let gateway = (!host.gateway.is_empty())
             .then(|| self.host_by_alias(&host.gateway))
             .flatten();
         if !host.gateway.is_empty() && gateway.is_none() {
-            return self.set_status(format!("Túnel SSH via '{}': host não existe", host.gateway));
+            return self.set_status(t!("st.gateway_missing", gw = host.gateway));
         }
         match RdpSession::start(host, gateway) {
             Ok(s) => {
                 self.set_status(if s.via_tunnel() {
-                    format!("Abrindo túnel via {} e RDP {}…", host.gateway, host.alias)
+                    t!(
+                        "st.rdp_opening_tunnel",
+                        gw = host.gateway,
+                        alias = host.alias
+                    )
                 } else {
-                    format!("Abrindo RDP {}…", host.alias)
+                    t!("st.rdp_opening", alias = host.alias)
                 });
                 self.rdp_sessions.push(s);
             }
-            Err(e) => self.set_status(format!("Falha no RDP: {e:#}")),
+            Err(e) => self.set_status(t!("st.rdp_failed", err = format!("{e:#}"))),
         }
     }
 
@@ -407,7 +416,7 @@ impl App {
                     self.sessions.push(s);
                     self.active = self.sessions.len() - 1;
                 }
-                Err(e) => return self.set_status(format!("Falha ao conectar: {e:#}")),
+                Err(e) => return self.set_status(t!("st.connect_failed", err = format!("{e:#}"))),
             }
         }
         self.term_focus = true;
@@ -454,9 +463,9 @@ impl App {
         match pw {
             Some(pw) if !pw.is_empty() => {
                 self.sessions[self.active].write(pw.as_bytes());
-                self.set_status(format!("Senha de {alias} digitada — aperte Enter"));
+                self.set_status(t!("st.pw_typed", alias = alias));
             }
-            _ => self.set_status(format!("{alias} não tem senha salva")),
+            _ => self.set_status(t!("st.no_password", alias = alias)),
         }
     }
 
@@ -499,22 +508,24 @@ impl App {
     fn persist_or_report(&mut self, ok_msg: &str) {
         match self.persist() {
             Ok(()) => self.set_status(ok_msg),
-            Err(e) => self.set_status(format!("Erro ao salvar: {e:#}")),
+            Err(e) => self.set_status(t!("st.save_error", err = format!("{e:#}"))),
         }
     }
 
     fn copy_password(&mut self, idx: usize) -> bool {
         let h = &self.store.hosts[idx];
         if h.password.is_empty() {
-            self.set_status(format!("{} não tem senha salva", h.alias));
+            self.set_status(t!("st.no_password", alias = h.alias));
             return false;
         }
         let pw = h.password.clone();
         let alias = h.alias.clone();
         let how = self.clip.copy_secret(&pw);
-        self.set_status(format!(
-            "Senha de {alias} copiada ({how}) — limpa em {}s",
-            crate::clipboard::CLEAR_AFTER.as_secs()
+        self.set_status(t!(
+            "st.pw_copied",
+            alias = alias,
+            how = how,
+            secs = crate::clipboard::CLEAR_AFTER.as_secs()
         ));
         true
     }
@@ -547,6 +558,7 @@ impl App {
                 }
             }
             Mode::Help => self.mode = Mode::List,
+            Mode::Lang(_) => self.key_lang(key),
         }
     }
 
@@ -605,10 +617,15 @@ impl App {
                             self.vault = Some(v);
                             self.store = store;
                             self.mode = Mode::List;
+                            if lang::forced().is_none()
+                                && let Some(code) = self.store.lang.as_deref().and_then(lang::parse)
+                            {
+                                lang::set(code);
+                            }
                             self.clamp_selection();
                             // garante que o ssh config reflete o cofre
                             if let Err(e) = sshconfig::write(&self.store.hosts) {
-                                self.set_status(format!("Erro no ssh config: {e:#}"));
+                                self.set_status(t!("st.sshconfig_error", err = format!("{e:#}")));
                             }
                         }
                         Err(e) => *error = Some(format!("{e:#}")),
@@ -617,7 +634,7 @@ impl App {
                 }
                 // Create / Rekey: pede duas vezes
                 if typed.len() < 4 {
-                    *error = Some("Use pelo menos 4 caracteres".into());
+                    *error = Some(t!("pw.min_len").into());
                     return;
                 }
                 match first.take() {
@@ -626,7 +643,7 @@ impl App {
                         *error = None;
                     }
                     Some(f) if *f != *typed => {
-                        *error = Some("As senhas não conferem, tente de novo".into());
+                        *error = Some(t!("pw.mismatch").into());
                     }
                     Some(_) => {
                         let result = if purpose == PwPurpose::Create {
@@ -642,9 +659,9 @@ impl App {
                             Ok(()) => {
                                 self.mode = Mode::List;
                                 self.set_status(if purpose == PwPurpose::Create {
-                                    "Cofre criado. Aperte 'a' para adicionar um host ou 'i' para importar do ~/.ssh/config"
+                                    t!("st.vault_created")
                                 } else {
-                                    "Senha mestra alterada"
+                                    t!("st.master_changed")
                                 });
                             }
                             Err(e) => {
@@ -697,13 +714,13 @@ impl App {
                     if let Some(pos) = self.sessions.iter().position(|s| s.alias == alias) {
                         self.sessions.remove(pos);
                         self.active = self.active.min(self.sessions.len().saturating_sub(1));
-                        self.set_status(format!("Sessão {alias} fechada"));
+                        self.set_status(t!("st.session_closed", alias = alias));
                     } else if let Some(pos) =
                         self.rdp_sessions.iter().position(|s| s.alias == alias)
                     {
                         // Drop fecha a janela do FreeRDP e o túnel
                         self.rdp_sessions.remove(pos);
-                        self.set_status(format!("RDP {alias} fechado"));
+                        self.set_status(t!("st.rdp_closed", alias = alias));
                     }
                 }
             }
@@ -712,7 +729,7 @@ impl App {
                     .selected_host()
                     .is_some_and(|i| self.store.hosts[i].kind == Kind::Rdp) =>
             {
-                self.set_status("Esse atalho é só para hosts SSH");
+                self.set_status(t!("st.ssh_only"));
             }
             KeyCode::Char('s') => {
                 if let Some(i) = self.selected_host() {
@@ -767,6 +784,11 @@ impl App {
                 }
             }
             KeyCode::Char('i') => self.import(),
+            KeyCode::Char('L') => {
+                let current = lang::current();
+                let i = lang::LANGS.iter().position(|l| *l == current).unwrap_or(0);
+                self.mode = Mode::Lang(i);
+            }
             KeyCode::Char('P') => {
                 self.mode = Mode::Password {
                     purpose: PwPurpose::Rekey,
@@ -873,7 +895,7 @@ impl App {
             .enumerate()
             .any(|(i, h)| Some(i) != editing && h.alias == host.alias);
         if dup {
-            f.error = Some(format!("Já existe um host com alias '{}'", host.alias));
+            f.error = Some(t!("err.duplicate", alias = host.alias).into());
             return;
         }
         if !host.gateway.is_empty() {
@@ -884,10 +906,7 @@ impl App {
                     .iter()
                     .any(|h| h.alias == host.gateway && h.kind == Kind::Ssh);
             if !ok {
-                f.error = Some(format!(
-                    "Túnel SSH via: '{}' não é um host SSH cadastrado",
-                    host.gateway
-                ));
+                f.error = Some(t!("err.gateway", gw = host.gateway).into());
                 return;
             }
         }
@@ -897,7 +916,7 @@ impl App {
             None => self.store.hosts.push(host),
         }
         self.mode = Mode::List;
-        self.persist_or_report(&format!("'{alias}' salvo"));
+        self.persist_or_report(&t!("st.saved", alias = alias));
         // reposiciona a seleção no host salvo
         self.filter.clear();
         if let Some(pos) = self.store.hosts.iter().position(|h| h.alias == alias) {
@@ -911,16 +930,36 @@ impl App {
         };
         if matches!(key.code, KeyCode::Char('s') | KeyCode::Char('y')) {
             let h = self.store.hosts.remove(i);
-            self.persist_or_report(&format!("'{}' removido", h.alias));
+            self.persist_or_report(&t!("st.removed", alias = h.alias));
         }
         self.mode = Mode::List;
         self.clamp_selection();
     }
 
+    fn key_lang(&mut self, key: KeyEvent) {
+        let Mode::Lang(i) = self.mode else {
+            return;
+        };
+        let n = lang::LANGS.len();
+        match key.code {
+            KeyCode::Up | KeyCode::Char('k') => self.mode = Mode::Lang((i + n - 1) % n),
+            KeyCode::Down | KeyCode::Char('j') => self.mode = Mode::Lang((i + 1) % n),
+            KeyCode::Enter => {
+                let code = lang::LANGS[i];
+                lang::set(code);
+                self.store.lang = Some(code.to_string());
+                self.mode = Mode::List;
+                self.persist_or_report(&t!("st.lang"));
+            }
+            KeyCode::Esc | KeyCode::Char('q') => self.mode = Mode::List,
+            _ => {}
+        }
+    }
+
     fn import(&mut self) {
         let found = match sshconfig::import_existing() {
             Ok(f) => f,
-            Err(e) => return self.set_status(format!("Erro ao importar: {e:#}")),
+            Err(e) => return self.set_status(t!("st.import_error", err = format!("{e:#}"))),
         };
         let mut added = 0;
         for h in found {
@@ -930,11 +969,9 @@ impl App {
             }
         }
         if added == 0 {
-            self.set_status("Nada novo para importar do ~/.ssh/config");
+            self.set_status(t!("st.import_none"));
         } else {
-            self.persist_or_report(&format!(
-                "{added} host(s) importado(s) — use 'e' para adicionar as senhas"
-            ));
+            self.persist_or_report(&t!("st.imported", n = added));
             self.clamp_selection();
         }
     }

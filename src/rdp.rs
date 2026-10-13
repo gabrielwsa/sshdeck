@@ -4,6 +4,7 @@
 
 use crate::{askpass, vault::Host};
 use anyhow::{Context, Result, bail};
+use rust_i18n::t;
 use std::{
     fs::{self, File},
     io::Write,
@@ -40,7 +41,7 @@ pub struct RdpSession {
 impl RdpSession {
     pub fn start(host: &Host, gateway: Option<&Host>) -> Result<Self> {
         if host.user.is_empty() {
-            bail!("RDP precisa de usuário");
+            bail!("{}", t!("err.rdp_user"));
         }
         let log = log_path(&host.alias)?;
         // log só do usuário: tem IPs e nomes de usuário
@@ -85,7 +86,7 @@ impl RdpSession {
         if let Some(t) = &mut self.tunnel
             && let Ok(Some(_)) = t.try_wait()
         {
-            return Some(Err(format!("túnel SSH caiu: {}", self.last_error())));
+            return Some(Err(t!("rdp.tunnel_down", err = self.last_error()).into()));
         }
         match self.state {
             State::Tunnel { port, deadline } => {
@@ -99,7 +100,7 @@ impl RdpSession {
                         Err(e) => return Some(Err(format!("{e:#}"))),
                     }
                 } else if Instant::now() > deadline {
-                    return Some(Err("túnel SSH não respondeu a tempo".into()));
+                    return Some(Err(t!("rdp.tunnel_timeout").into()));
                 }
                 None
             }
@@ -140,7 +141,7 @@ impl RdpSession {
         if !gw.password.is_empty() {
             cmd.env(askpass::PASSWORD_ENV, &gw.password);
         }
-        cmd.spawn().context("executando ssh para o túnel")
+        cmd.spawn().context(t!("rdp.spawn_tunnel"))
     }
 
     fn spawn_client(&self, server: &str, port: u16) -> Result<Child> {
@@ -173,7 +174,7 @@ impl RdpSession {
             .stdout(self.log_file()?)
             .stderr(self.log_file()?)
             .spawn()
-            .context("executando o FreeRDP")?;
+            .context(t!("rdp.spawn_client"))?;
         // o FreeRDP só pergunta a senha (o usuário já foi passado)
         if let Some(mut stdin) = child.stdin.take() {
             let line = Zeroizing::new(format!("{}\n", h.password));
@@ -205,7 +206,7 @@ impl RdpSession {
                     .find(|l| !l.trim().is_empty())
                     .map(|l| l.trim().to_string())
             })
-            .unwrap_or_else(|| format!("veja {}", self.log.display()))
+            .unwrap_or_else(|| t!("rdp.see_log", path = self.log.display()).into())
     }
 }
 
@@ -232,7 +233,7 @@ pub fn client_binary() -> Result<String> {
             return Ok(name.to_string());
         }
     }
-    bail!("FreeRDP não encontrado (instale o pacote freerdp)")
+    bail!("{}", t!("rdp.not_found"))
 }
 
 /// Valida o campo de resolução: vazio, "full", "LxA" ou "N%".
@@ -265,7 +266,7 @@ fn free_port() -> Result<u16> {
 
 fn log_path(alias: &str) -> Result<PathBuf> {
     let dir = dirs::cache_dir()
-        .context("sem diretório de cache")?
+        .context(t!("rdp.no_cache"))?
         .join("sshdeck");
     fs::create_dir_all(&dir)?;
     fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;

@@ -1,5 +1,6 @@
 use crate::{
     app::{App, Field, Form, Mode, PwPurpose},
+    lang,
     vault::{Host, Kind},
 };
 use ratatui::{
@@ -9,6 +10,8 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, BorderType, Cell, Clear, Paragraph, Row, Table, Wrap},
 };
+use rust_i18n::t;
+use std::borrow::Cow;
 use tui_term::widget::{Cursor, PseudoTerminal};
 
 const ACCENT: Color = Color::Cyan;
@@ -39,10 +42,10 @@ fn extra(h: &Host) -> String {
         Kind::Rdp => {
             let mut parts = Vec::new();
             if !h.domain.is_empty() {
-                parts.push(format!("domínio {}", h.domain));
+                parts.push(t!("ui.extra_domain", d = h.domain));
             }
             if !h.gateway.is_empty() {
-                parts.push(format!("via {}", h.gateway));
+                parts.push(t!("ui.extra_via", gw = h.gateway));
             }
             parts.join(" · ")
         }
@@ -87,15 +90,16 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         Mode::Form(form) => draw_form(f, form),
         Mode::ConfirmDelete(i) => draw_confirm(
             f,
-            " Apagar ",
-            &format!("Apagar '{}' e a senha salva?", app.store.hosts[*i].alias),
+            &t!("ui.delete_title"),
+            &t!("ui.delete_q", alias = app.store.hosts[*i].alias),
         ),
         Mode::ConfirmQuit => draw_confirm(
             f,
-            " Sair ",
-            &format!("Sair e fechar {} conexão(ões) abertas?", app.open_count()),
+            &t!("ui.quit_title"),
+            &t!("ui.quit_q", n = app.open_count()),
         ),
         Mode::Help => draw_help(f),
+        Mode::Lang(i) => draw_lang(f, *i),
         _ => {}
     }
 }
@@ -124,7 +128,7 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
     title.push(Span::raw(format!("· {} hosts ", app.store.hosts.len())));
     if !app.filter.is_empty() || matches!(app.mode, Mode::Filter) {
         title.push(Span::styled(
-            format!("· filtro: {}", app.filter),
+            format!("· {}", t!("ui.filter", f = app.filter)),
             Style::new().fg(Color::Yellow),
         ));
         if matches!(app.mode, Mode::Filter) {
@@ -146,9 +150,17 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
         ],
     )
     .header(
-        Row::new(vec!["", "", "Alias", "User", "Host / IP", "Port", "Extra"])
-            .style(Style::new().fg(ACCENT).add_modifier(Modifier::BOLD))
-            .bottom_margin(1),
+        Row::new(vec![
+            Cow::Borrowed(""),
+            Cow::Borrowed(""),
+            t!("field.alias"),
+            t!("ui.col_user"),
+            t!("field.hostname"),
+            t!("ui.col_port"),
+            t!("ui.col_extra"),
+        ])
+        .style(Style::new().fg(ACCENT).add_modifier(Modifier::BOLD))
+        .bottom_margin(1),
     )
     .row_highlight_style(
         Style::new()
@@ -164,9 +176,9 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
 
     if visible.is_empty() {
         let msg = if app.store.hosts.is_empty() {
-            "Nenhum host ainda.\n\n'a' adiciona um host  ·  'i' importa do ~/.ssh/config"
+            t!("ui.empty")
         } else {
-            "Nenhum host corresponde ao filtro."
+            t!("ui.no_match")
         };
         f.render_widget(table, area);
         let inner = centered(area, 60, 5);
@@ -211,7 +223,10 @@ fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
 
-    let mut title = vec![Span::styled(" Servidores ", Style::new().fg(ACCENT).bold())];
+    let mut title = vec![Span::styled(
+        format!(" {} ", t!("ui.servers")),
+        Style::new().fg(ACCENT).bold(),
+    )];
     if !app.filter.is_empty() || matches!(app.mode, Mode::Filter) {
         title.push(Span::styled(
             format!("/{}", app.filter),
@@ -245,44 +260,58 @@ fn draw_info(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().dark_gray())
-        .title(Span::styled(" Conexão ", Style::new().fg(ACCENT).bold()));
+        .title(Span::styled(
+            format!(" {} ", t!("ui.connection")),
+            Style::new().fg(ACCENT).bold(),
+        ));
     let Some(s) = app.active_session() else {
         f.render_widget(block, area);
         return;
     };
+    let labels = [
+        t!("info.user"),
+        t!("info.host"),
+        t!("info.port"),
+        t!("info.key"),
+        t!("info.password"),
+        t!("info.time"),
+    ];
+    // largura da coluna de rótulos depende do idioma ("contraseña" é maior que "senha")
+    let width = labels.iter().map(|l| l.chars().count()).max().unwrap_or(0) + 1;
     let field = |k: &str, v: String| {
         Line::from(vec![
-            Span::styled(format!("{k:<7}"), Style::new().dark_gray()),
+            Span::styled(format!("{k:<width$}"), Style::new().dark_gray()),
             Span::raw(v),
         ])
     };
+    let [l_user, l_host, l_port, l_key, l_pw, l_time] = &labels;
     let mut lines = vec![Line::from(Span::styled(
         s.alias.clone(),
         Style::new().fg(Color::Green).bold(),
     ))];
     if let Some(h) = app.host_by_alias(&s.alias) {
         lines.push(field(
-            "user",
+            l_user,
             if h.user.is_empty() {
                 "-".into()
             } else {
                 h.user.clone()
             },
         ));
-        lines.push(field("host", h.hostname.clone()));
-        lines.push(field("porta", h.port.to_string()));
+        lines.push(field(l_host, h.hostname.clone()));
+        lines.push(field(l_port, h.port.to_string()));
         if !h.identity_file.is_empty() {
-            lines.push(field("chave", h.identity_file.clone()));
+            lines.push(field(l_key, h.identity_file.clone()));
         }
         lines.push(field(
-            "senha",
+            l_pw,
             if h.password.is_empty() {
-                "não salva".into()
+                t!("info.not_saved").into()
             } else {
-                format!("{KEY_ICON} salva (Alt+P)")
+                t!("info.saved", icon = KEY_ICON).into()
             },
         ));
-        lines.push(field("tempo", elapsed(s.started.elapsed().as_secs())));
+        lines.push(field(l_time, elapsed(s.started.elapsed().as_secs())));
         if !h.notes.is_empty() {
             lines.push(Line::from(""));
             lines.push(Line::from(h.notes.clone()).italic());
@@ -325,7 +354,7 @@ fn draw_terminal(f: &mut Frame, app: &mut App, area: Rect) {
     ];
     if screen.scrollback() > 0 {
         title.push(Span::styled(
-            format!("histórico -{} ", screen.scrollback()),
+            format!("{} ", t!("ui.history", n = screen.scrollback())),
             Style::new().fg(Color::Yellow),
         ));
     }
@@ -343,68 +372,90 @@ fn draw_terminal(f: &mut Frame, app: &mut App, area: Rect) {
     );
 }
 
+type Hint = (Cow<'static, str>, Cow<'static, str>);
+
+fn k(key: impl Into<Cow<'static, str>>, desc: impl Into<Cow<'static, str>>) -> Hint {
+    (key.into(), desc.into())
+}
+
 /// Rodapé com os atalhos do contexto atual — sempre visível.
 fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
-    let keys: &[(&str, &str)] = match &app.mode {
-        Mode::Password { purpose, .. } => &[
-            ("Enter", "confirmar"),
-            (
+    let keys: Vec<Hint> = match &app.mode {
+        Mode::Password { purpose, .. } => vec![
+            k("Enter", t!("h.confirm")),
+            k(
                 "Esc",
                 if *purpose == PwPurpose::Rekey {
-                    "cancelar"
+                    t!("h.cancel")
                 } else {
-                    "sair"
+                    t!("h.quit")
                 },
             ),
         ],
-        Mode::Form(form) if form.focused() == Field::Kind => &[
-            ("←/→ ou espaço", "SSH/RDP"),
-            ("Tab/↓", "próximo"),
-            ("Ctrl+S", "salvar"),
-            ("Esc", "cancelar"),
+        Mode::Form(form) if form.focused() == Field::Kind => vec![
+            k(t!("key.arrows_space"), "SSH/RDP"),
+            k("Tab/↓", t!("h.next")),
+            k("Ctrl+S", t!("h.save")),
+            k("Esc", t!("h.cancel")),
         ],
-        Mode::Form(_) => &[
-            ("Tab/↓", "próximo"),
-            ("Shift+Tab/↑", "anterior"),
-            ("Ctrl+S", "salvar"),
-            ("Ctrl+R", "mostrar senha"),
-            ("Ctrl+U", "limpar campo"),
-            ("Esc", "cancelar"),
+        Mode::Form(_) => vec![
+            k("Tab/↓", t!("h.next")),
+            k("Shift+Tab/↑", t!("h.prev")),
+            k("Ctrl+S", t!("h.save")),
+            k("Ctrl+R", t!("h.show_pw")),
+            k("Ctrl+U", t!("h.clear_field")),
+            k("Esc", t!("h.cancel")),
         ],
-        Mode::ConfirmDelete(_) | Mode::ConfirmQuit => &[("s", "sim"), ("outra tecla", "não")],
-        Mode::Help => &[("qualquer tecla", "fechar")],
-        Mode::Filter => &[("digite", "filtrar"), ("Enter", "ok"), ("Esc", "limpar")],
-        Mode::List if app.term_focus && !app.sessions.is_empty() => &[
-            ("Ctrl+]", "painel"),
-            ("Alt+P", "digitar senha"),
-            ("Alt+←/→", "trocar sessão"),
-            ("Shift+PgUp/PgDn", "histórico"),
+        Mode::ConfirmDelete(_) | Mode::ConfirmQuit => confirm_hints(),
+        Mode::Help => vec![k(t!("key.any"), t!("h.close"))],
+        Mode::Lang(_) => vec![
+            k("↑/↓", t!("h.choose")),
+            k("Enter", t!("h.ok")),
+            k("Esc", t!("h.cancel")),
         ],
-        Mode::List if !app.sessions.is_empty() => &[
-            ("Enter", "conectar"),
-            ("Tab", "terminal"),
-            ("x", "fechar sessão"),
-            ("K", "ssh-copy-id"),
-            ("c", "copiar senha"),
-            ("a/e/d", "add/editar/apagar"),
-            ("/", "filtrar"),
-            ("?", "ajuda"),
-            ("q", "sair"),
+        Mode::Filter => vec![
+            k(t!("key.type"), t!("h.filter")),
+            k("Enter", t!("h.ok")),
+            k("Esc", t!("h.clear")),
         ],
-        Mode::List => &[
-            ("Enter", "conectar"),
-            ("x", "fechar"),
-            ("s", "tela cheia"),
-            ("K", "ssh-copy-id"),
-            ("c", "copiar senha"),
-            ("a/e/d", "add/editar/apagar"),
-            ("i", "importar"),
-            ("/", "filtrar"),
-            ("?", "ajuda"),
-            ("q", "sair"),
+        Mode::List if app.term_focus && !app.sessions.is_empty() => vec![
+            k("Ctrl+]", t!("h.panel")),
+            k("Alt+P", t!("h.type_pw")),
+            k("Alt+←/→", t!("h.switch_session")),
+            k("Shift+PgUp/PgDn", t!("h.history")),
+        ],
+        Mode::List if !app.sessions.is_empty() => vec![
+            k("Enter", t!("h.connect")),
+            k("Tab", t!("h.terminal")),
+            k("x", t!("h.close_session")),
+            k("K", "ssh-copy-id"),
+            k("c", t!("h.copy_pw")),
+            k("a/e/d", t!("h.add_edit_del")),
+            k("/", t!("h.filter")),
+            k("?", t!("h.help")),
+            k("q", t!("h.quit")),
+        ],
+        Mode::List => vec![
+            k("Enter", t!("h.connect")),
+            k("x", t!("h.close")),
+            k("s", t!("h.fullscreen")),
+            k("K", "ssh-copy-id"),
+            k("c", t!("h.copy_pw")),
+            k("a/e/d", t!("h.add_edit_del")),
+            k("i", t!("h.import")),
+            k("/", t!("h.filter")),
+            k("?", t!("h.help")),
+            k("q", t!("h.quit")),
         ],
     };
-    f.render_widget(Paragraph::new(hints(keys)), area);
+    f.render_widget(Paragraph::new(hints(&keys)), area);
+}
+
+fn confirm_hints() -> Vec<Hint> {
+    vec![
+        k(t!("key.yes"), t!("h.yes")),
+        k(t!("key.other"), t!("h.no")),
+    ]
 }
 
 /// Mensagem de status no canto inferior direito da borda, sem esconder os atalhos.
@@ -431,7 +482,7 @@ fn draw_status(f: &mut Frame, app: &App, main: Rect) {
     );
 }
 
-fn hints(keys: &[(&str, &str)]) -> Line<'static> {
+fn hints(keys: &[Hint]) -> Line<'static> {
     let mut spans = vec![Span::raw(" ")];
     for (i, (k, d)) in keys.iter().enumerate() {
         if i > 0 {
@@ -453,14 +504,14 @@ fn draw_password(
     let area = centered(f.area(), 54, 9);
     f.render_widget(Clear, area);
     let title = match purpose {
-        PwPurpose::Unlock => " Desbloquear cofre ",
-        PwPurpose::Create => " Criar cofre ",
-        PwPurpose::Rekey => " Nova senha mestra ",
+        PwPurpose::Unlock => t!("pw.title_unlock"),
+        PwPurpose::Create => t!("pw.title_create"),
+        PwPurpose::Rekey => t!("pw.title_rekey"),
     };
     let prompt = match (purpose, confirming) {
-        (PwPurpose::Unlock, _) => "Senha mestra:",
-        (_, false) => "Defina a senha mestra:",
-        (_, true) => "Confirme a senha mestra:",
+        (PwPurpose::Unlock, _) => t!("pw.prompt_unlock"),
+        (_, false) => t!("pw.prompt_define"),
+        (_, true) => t!("pw.prompt_confirm"),
     };
     let mut lines = vec![
         Line::from(prompt),
@@ -476,15 +527,16 @@ fn draw_password(
             e.to_string(),
             Style::new().fg(Color::Red),
         ))),
-        None if purpose == PwPurpose::Create => {
-            lines.push(Line::from("Ela protege todas as senhas salvas. Não esqueça!").dim())
-        }
+        None if purpose == PwPurpose::Create => lines.push(Line::from(t!("pw.warning")).dim()),
         None => lines.push(Line::from("")),
     }
 
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
-        .title(Span::styled(title, Style::new().fg(ACCENT).bold()));
+        .title(Span::styled(
+            format!(" {title} "),
+            Style::new().fg(ACCENT).bold(),
+        ));
     f.render_widget(Paragraph::new(lines).block(block), area);
 }
 
@@ -493,9 +545,9 @@ fn draw_form(f: &mut Frame, form: &Form) {
     let area = centered(f.area(), 84, fields.len() as u16 + 5);
     f.render_widget(Clear, area);
     let title = if form.editing.is_some() {
-        " Editar host "
+        t!("form.edit")
     } else {
-        " Novo host "
+        t!("form.new")
     };
     let port_hint = form.default_port().to_string();
     let mut lines = vec![Line::from("")];
@@ -521,7 +573,7 @@ fn draw_form(f: &mut Frame, form: &Form) {
                 spans.push(Span::raw(" "));
             }
             if focused {
-                spans.push(Span::raw(" ←/→ troca").dark_gray());
+                spans.push(Span::raw(format!(" {}", t!("form.toggle"))).dark_gray());
             }
             lines.push(Line::from(spans));
             continue;
@@ -533,15 +585,13 @@ fn draw_form(f: &mut Frame, form: &Form) {
         } else {
             raw.to_string()
         };
-        let placeholder = match field {
-            Field::Port => Some(port_hint.as_str()),
-            Field::IdentityFile => Some(form.identity_hint.as_str()),
-            Field::Domain => Some("vazio = conta local"),
-            Field::Resolution => {
-                Some("vazio = janela 80% redimensionável · full · 1920x1080 · 90%")
-            }
-            Field::Share => Some("vazio = nenhuma · ex.: ~/Downloads"),
-            Field::Gateway => Some("vazio = conexão direta · ex.: alias de um host SSH"),
+        let placeholder: Option<Cow<str>> = match field {
+            Field::Port => Some(port_hint.as_str().into()),
+            Field::IdentityFile => Some(form.identity_hint.as_str().into()),
+            Field::Domain => Some(t!("ph.domain")),
+            Field::Resolution => Some(t!("ph.resolution")),
+            Field::Share => Some(t!("ph.share")),
+            Field::Gateway => Some(t!("ph.gateway")),
             _ => None,
         };
         // com placeholder, o cursor fica antes do texto cinza (o campo está vazio)
@@ -568,7 +618,10 @@ fn draw_form(f: &mut Frame, form: &Form) {
 
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
-        .title(Span::styled(title, Style::new().fg(ACCENT).bold()));
+        .title(Span::styled(
+            format!(" {title} "),
+            Style::new().fg(ACCENT).bold(),
+        ));
     f.render_widget(Paragraph::new(lines).block(block), area);
 }
 
@@ -578,45 +631,65 @@ fn draw_confirm(f: &mut Frame, title: &str, question: &str) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(Color::Red))
-        .title(title.to_string());
+        .title(format!(" {title} "));
     let text = vec![
         Line::from(question.to_string()),
         Line::from(""),
-        hints(&[("s", "sim"), ("outra tecla", "não")]),
+        hints(&confirm_hints()),
     ];
     f.render_widget(Paragraph::new(text).block(block), area);
 }
 
+fn draw_lang(f: &mut Frame, selected: usize) {
+    let current = lang::current();
+    let lines: Vec<Line> = lang::LANGS
+        .iter()
+        .zip(lang::NAMES)
+        .enumerate()
+        .map(|(i, (code, name))| {
+            let mark = if *code == current { "●" } else { " " };
+            let text = format!(" {mark} {name} ");
+            if i == selected {
+                Line::styled(text, Style::new().fg(Color::Black).bg(ACCENT).bold())
+            } else {
+                Line::raw(text)
+            }
+        })
+        .collect();
+    let area = centered(f.area(), 30, lines.len() as u16 + 2);
+    f.render_widget(Clear, area);
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::new().fg(ACCENT))
+        .title(format!(" {} ", t!("ui.lang_title")));
+    f.render_widget(Paragraph::new(lines).block(block), area);
+}
+
 fn draw_help(f: &mut Frame) {
-    let rows = [
-        (
-            "Enter",
-            "conecta: SSH no painel central, RDP em janela própria",
-        ),
-        ("s", "conecta em tela cheia (ssh normal)"),
-        ("Tab / l", "vai para o terminal"),
-        ("x", "fecha a sessão (ou a janela RDP) do host"),
-        (
-            "K",
-            "ssh-copy-id: instala sua chave no servidor (usa a senha salva)",
-        ),
-        ("c / y", "copia a senha para o clipboard"),
-        ("a", "adiciona host"),
-        ("e", "edita host selecionado"),
-        ("d / Del", "apaga host"),
-        ("/", "filtra por alias, user ou host"),
-        ("i", "importa hosts do ~/.ssh/config"),
-        ("P", "troca a senha mestra"),
-        ("j/k ↑/↓ g/G", "navegação"),
-        ("q / Esc", "sair"),
-        ("", ""),
-        ("No terminal:", ""),
-        ("Ctrl+]", "volta para o painel (sessão continua)"),
-        ("Alt+P", "digita a senha salva no terminal"),
-        ("Alt+← / →", "troca de sessão"),
-        ("Shift+PgUp/Dn", "rola o histórico"),
-        ("", ""),
-        ("Dica", "sudo su → Alt+P (ou Ctrl+Shift+V) → Enter"),
+    let rows: Vec<Hint> = vec![
+        k("Enter", t!("help.enter")),
+        k("s", t!("help.s")),
+        k("Tab / l", t!("help.tab")),
+        k("x", t!("help.x")),
+        k("K", t!("help.k")),
+        k("c / y", t!("help.c")),
+        k("a", t!("help.a")),
+        k("e", t!("help.e")),
+        k("d / Del", t!("help.d")),
+        k("/", t!("help.filter")),
+        k("i", t!("help.i")),
+        k("P", t!("help.rekey")),
+        k("L", t!("help.lang")),
+        k("j/k ↑/↓ g/G", t!("help.nav")),
+        k("q / Esc", t!("help.quit")),
+        k("", ""),
+        k(t!("help.in_terminal"), ""),
+        k("Ctrl+]", t!("help.panel")),
+        k("Alt+P", t!("help.altp")),
+        k("Alt+← / →", t!("help.switch")),
+        k("Shift+PgUp/Dn", t!("help.scroll")),
+        k("", ""),
+        k(t!("help.tip_key"), t!("help.tip")),
     ];
     let area = centered(f.area(), 90, rows.len() as u16 + 4);
     f.render_widget(Clear, area);
@@ -625,14 +698,17 @@ fn draw_help(f: &mut Frame) {
         .map(|(k, d)| {
             Line::from(vec![
                 Span::styled(format!("  {k:<16}"), Style::new().fg(ACCENT).bold()),
-                Span::raw(*d),
+                Span::raw(d.clone()),
             ])
         })
         .collect();
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
-        .title(Span::styled(" Ajuda ", Style::new().fg(ACCENT).bold()))
-        .title_bottom(Line::from(" qualquer tecla fecha ").dim());
+        .title(Span::styled(
+            format!(" {} ", t!("help.title")),
+            Style::new().fg(ACCENT).bold(),
+        ))
+        .title_bottom(Line::from(format!(" {} ", t!("help.close"))).dim());
     f.render_widget(
         Paragraph::new(lines)
             .wrap(Wrap { trim: false })

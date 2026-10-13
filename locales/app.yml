@@ -429,6 +429,58 @@ info.time:
   pt: "tempo"
   en: "time"
   es: "tiempo"
+info.last:
+  pt: "último login"
+  en: "last login"
+  es: "último login"
+info.never:
+  pt: "nunca"
+  en: "never"
+  es: "nunca"
+info.key_default:
+  pt: "padrão do ssh"
+  en: "ssh default"
+  es: "predeterminada de ssh"
+info.ago_now:
+  pt: "agora"
+  en: "just now"
+  es: "ahora"
+info.ago_min:
+  pt: "há %{n} min"
+  en: "%{n} min ago"
+  es: "hace %{n} min"
+info.ago_h:
+  pt: "há %{n} h"
+  en: "%{n} h ago"
+  es: "hace %{n} h"
+info.ago_d:
+  pt: "há %{n} dia(s)"
+  en: "%{n} day(s) ago"
+  es: "hace %{n} día(s)"
+info.created:
+  pt: "criado"
+  en: "created"
+  es: "creado"
+info.updated:
+  pt: "atualizado"
+  en: "updated"
+  es: "actualizado"
+info.resolution:
+  pt: "resolução"
+  en: "resolution"
+  es: "resolución"
+info.res_default:
+  pt: "janela 80%"
+  en: "80% window"
+  es: "ventana 80%"
+info.connected:
+  pt: "conectado"
+  en: "connected"
+  es: "conectado"
+info.connecting:
+  pt: "conectando..."
+  en: "connecting..."
+  es: "conectando..."
 info.not_saved:
   pt: "não salva"
   en: "not saved"

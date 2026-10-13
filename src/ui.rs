@@ -146,16 +146,17 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
         title.push(Span::raw(" "));
     }
 
+    let [alias, user, host, port, extra] = list_widths(area.width);
     let table = Table::new(
         rows,
         [
             Constraint::Length(1),
             Constraint::Length(1),
-            Constraint::Min(12),
-            Constraint::Min(10),
-            Constraint::Min(15),
-            Constraint::Length(6),
-            Constraint::Min(10),
+            Constraint::Length(alias),
+            Constraint::Length(user),
+            Constraint::Length(host),
+            Constraint::Length(port),
+            Constraint::Length(extra),
         ],
     )
     .header(
@@ -176,12 +177,13 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
             .bg(Color::DarkGray)
             .add_modifier(Modifier::BOLD),
     )
-    .highlight_symbol("▶ ")
-    .block(
-        Block::bordered()
-            .border_type(BorderType::Rounded)
-            .title(Line::from(title)),
-    );
+    .highlight_symbol("▶ ");
+
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .title(Line::from(title));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
 
     if visible.is_empty() {
         let msg = if app.store.hosts.is_empty() {
@@ -189,11 +191,157 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
         } else {
             t!("ui.no_match")
         };
-        f.render_widget(table, area);
-        let inner = centered(area, 60, 5);
-        f.render_widget(Paragraph::new(msg).centered().dim(), inner);
+        f.render_widget(table, inner);
+        f.render_widget(Paragraph::new(msg).centered().dim(), centered(area, 60, 5));
+        return;
+    }
+
+    // a tabela ocupa só a largura das colunas ("▶ " e 1 espaço entre as 7 colunas);
+    // à direita, sem caixa, vão as notas, a chave e a última conexão do host selecionado
+    let table_width = alias + user + host + port + extra + 1 + 1 + 2 + 6;
+    let [table_area, _, side] = Layout::horizontal([
+        Constraint::Length(table_width),
+        Constraint::Length(4),
+        Constraint::Fill(1),
+    ])
+    .areas(inner);
+    if side.width >= SIDE_MIN {
+        f.render_stateful_widget(table, table_area, &mut app.table);
+        let side = Rect {
+            width: side.width.saturating_sub(1),
+            ..side
+        };
+        if let Some(i) = app.selected_host() {
+            let h = &app.store.hosts[i];
+            draw_host_side(f, h, app.connection(&h.alias), side);
+        }
     } else {
-        f.render_stateful_widget(table, area, &mut app.table);
+        f.render_stateful_widget(table, inner, &mut app.table);
+    }
+}
+
+/// Largura mínima para mostrar as informações ao lado da lista.
+const SIDE_MIN: u16 = 28;
+
+/// Notas, chave e última conexão do host selecionado, numa caixa ao lado da lista
+/// (com a altura do conteúdo).
+fn draw_host_side(f: &mut Frame, h: &Host, connection: Option<bool>, area: Rect) {
+    let when = |t: Option<u64>, missing: Cow<'static, str>| match t {
+        Some(t) => Span::raw(ago(t)),
+        None => Span::raw(missing).dark_gray(),
+    };
+    // SSH e RDP com o mesmo número de linhas, para a caixa não mudar de tamanho
+    let mut rows: Vec<(Cow<str>, Span)> = vec![match h.kind {
+        Kind::Ssh => (
+            t!("info.key"),
+            if h.identity_file.is_empty() {
+                Span::raw(t!("info.key_default")).dark_gray()
+            } else {
+                Span::raw(h.identity_file.clone())
+            },
+        ),
+        Kind::Rdp => (
+            t!("info.resolution"),
+            if h.resolution.is_empty() {
+                Span::raw(t!("info.res_default")).dark_gray()
+            } else {
+                Span::raw(h.resolution.clone())
+            },
+        ),
+    }];
+    rows.push((t!("info.last"), when(h.last_used, t!("info.never"))));
+    let date = |t: Option<u64>, missing: Cow<'static, str>| match t {
+        Some(t) => Span::raw(local_datetime(t)),
+        None => Span::raw(missing).dark_gray(),
+    };
+    rows.push((t!("info.created"), date(h.created, "-".into())));
+    rows.push((t!("info.updated"), date(h.updated, t!("info.never"))));
+    let width = rows
+        .iter()
+        .map(|(l, _)| l.chars().count())
+        .max()
+        .unwrap_or(0)
+        + 2;
+
+    let mut lines: Vec<Line> = Vec::new();
+    lines.extend(rows.into_iter().map(|(label, value)| {
+        Line::from(vec![
+            Span::styled(format!("{label:<width$}"), Style::new().dark_gray()),
+            value,
+        ])
+    }));
+    if !h.notes.is_empty() {
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            t!("field.notes").to_string(),
+            Style::new().fg(ACCENT).bold(),
+        ));
+        lines.extend(h.notes.lines().map(|l| Line::from(l.to_string())));
+    }
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .padding(ratatui::widgets::Padding::horizontal(1))
+        .title(Line::from(
+            [
+                vec![Span::styled(
+                    format!(" {} ", h.alias),
+                    Style::new().fg(ACCENT).bold(),
+                )],
+                match connection {
+                    Some(true) => vec![Span::styled(
+                        format!("{DOT} {} ", t!("info.connected")),
+                        Style::new().fg(Color::Green).bold(),
+                    )],
+                    Some(false) => vec![Span::styled(
+                        format!("{DOT} {} ", t!("info.connecting")),
+                        Style::new().fg(Color::Yellow),
+                    )],
+                    None => vec![],
+                },
+            ]
+            .concat(),
+        ));
+    // altura = linhas já quebradas na largura da caixa + bordas
+    let text_width = area.width.saturating_sub(4).max(1) as usize;
+    let height: usize = lines
+        .iter()
+        .map(|l| l.width().div_ceil(text_width).max(1))
+        .sum();
+    let area = Rect {
+        height: (height as u16 + 2).min(area.height),
+        ..area
+    };
+    f.render_widget(Clear, area);
+    f.render_widget(
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .block(block),
+        area,
+    );
+}
+
+/// nf-oct-dot_fill: separa a data da hora
+const DOT: &str = "\u{f444}";
+
+/// "13/10/2026 ● 14:59:11", no fuso do sistema.
+fn local_datetime(secs: u64) -> String {
+    match chrono::DateTime::from_timestamp(secs as i64, 0) {
+        Some(utc) => utc
+            .with_timezone(&chrono::Local)
+            .format(&format!("%d/%m/%Y {DOT} %H:%M:%S"))
+            .to_string(),
+        None => "-".into(),
+    }
+}
+
+/// "há 5 min", "há 2 h", "há 3 dia(s)"
+fn ago(then: u64) -> String {
+    let secs = crate::vault::now().saturating_sub(then);
+    match secs {
+        0..60 => t!("info.ago_now").into(),
+        60..3600 => t!("info.ago_min", n = secs / 60).into(),
+        3600..86400 => t!("info.ago_h", n = secs / 3600).into(),
+        _ => t!("info.ago_d", n = secs / 86400).into(),
     }
 }
 
@@ -209,6 +357,28 @@ fn focus_border(focused: bool) -> Style {
     } else {
         Style::new().dark_gray()
     }
+}
+
+/// Larguras de Alias, User, HostName, Port e Extra: crescem junto com o terminal, cada uma
+/// entre um mínimo e um máximo, para as colunas não ficarem longe demais em telas largas.
+fn list_widths(total: u16) -> [u16; 5] {
+    // (mínimo, máximo, peso)
+    const COLS: [(u16, u16, u16); 5] = [
+        (12, 24, 3),
+        (10, 16, 2),
+        (15, 20, 2),
+        (6, 10, 1),
+        (10, 30, 3),
+    ];
+    // bordas, "▶ ", os dois ícones e 1 espaço entre as 7 colunas
+    let free = total.saturating_sub(2 + 2 + 2 + 6);
+    let weights: u32 = COLS.iter().map(|c| c.2 as u32).sum();
+    let mut widths =
+        COLS.map(|(min, max, w)| ((free as u32 * w as u32 / weights) as u16).clamp(min, max));
+    // os mínimos podem passar da tela: quem cede é a Extra, a menos importante
+    let over = widths.iter().sum::<u16>().saturating_sub(free);
+    widths[4] = widths[4].saturating_sub(over);
+    widths
 }
 
 fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
@@ -741,5 +911,23 @@ fn centered(area: Rect, w: u16, h: u16) -> Rect {
         y: area.y + (area.height - h) / 2,
         width: w,
         height: h,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::list_widths;
+
+    #[test]
+    fn columns_grow_with_terminal_up_to_max() {
+        for total in [60, 80, 100, 120] {
+            let used: u16 = list_widths(total).iter().sum::<u16>() + 12;
+            assert!(used <= total.max(64), "{total}: {used}");
+        }
+
+        let mid = list_widths(120);
+        assert!(mid.iter().zip(list_widths(80)).all(|(a, b)| *a >= b));
+        assert_eq!(list_widths(250), [24, 16, 20, 10, 30]);
+        assert_eq!(list_widths(u16::MAX), [24, 16, 20, 10, 30]);
     }
 }

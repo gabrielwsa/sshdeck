@@ -119,6 +119,11 @@ alias existir nos dois arquivos, vale o do sshdeck.
 - Se não houver clipboard do sistema, ele usa OSC 52: quem copia é o próprio terminal.
 
 ### Interface
+- **Ao lado da lista**, em texto solto, aparecem, numa caixa, a chave (hosts SSH) ou a
+  resolução (RDP), o **último login** ("há 2 h"), quando o host foi **criado** e **atualizado**
+  (`13/10/2026  14:59:11`, no fuso do sistema) e as **notas** do host selecionado. As datas
+  ficam guardadas no cofre. As colunas da lista crescem
+  com o terminal até um máximo; em terminais estreitos essas informações somem.
 - Os atalhos do contexto atual ficam sempre visíveis no rodapé, e as mensagens aparecem no canto
   da borda.
 - `?` abre a ajuda completa.

@@ -48,6 +48,21 @@ pub struct Host {
     /// alias de um host SSH para abrir túnel até o RDP
     #[serde(default)]
     pub gateway: String,
+    /// última conexão (segundos desde 1970), mostrada ao lado da lista
+    #[serde(default)]
+    pub last_used: Option<u64>,
+    /// quando o host foi cadastrado e editado pela última vez (segundos desde 1970)
+    #[serde(default)]
+    pub created: Option<u64>,
+    #[serde(default)]
+    pub updated: Option<u64>,
+}
+
+/// Segundos desde 1970, para os campos de data dos hosts.
+pub fn now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
 }
 
 #[derive(Serialize, Deserialize, Default)]

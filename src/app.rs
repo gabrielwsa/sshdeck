@@ -4,7 +4,7 @@ use crate::{
     rdp::{self, RdpSession},
     session::Session,
     sshconfig,
-    vault::{Host, Kind, Store, Vault},
+    vault::{self, Host, Kind, Store, Vault},
 };
 use anyhow::{Result, bail};
 use ratatui::{
@@ -233,6 +233,7 @@ impl Form {
             resolution: only(rdp, Field::Resolution),
             share: only(rdp, Field::Share),
             gateway: only(rdp, Field::Gateway),
+            ..Default::default()
         })
     }
 }
@@ -364,6 +365,17 @@ impl App {
         self.store.hosts.iter().find(|h| h.alias == alias)
     }
 
+    /// Estado da conexão do host: `Some(true)` aberta, `Some(false)` RDP esperando o túnel.
+    pub fn connection(&self, alias: &str) -> Option<bool> {
+        if self.sessions.iter().any(|s| s.alias == alias) {
+            return Some(true);
+        }
+        self.rdp_sessions
+            .iter()
+            .find(|s| s.alias == alias)
+            .map(|s| !s.connecting())
+    }
+
     pub fn has_session(&self, alias: &str) -> bool {
         self.sessions.iter().any(|s| s.alias == alias)
             || self.rdp_sessions.iter().any(|s| s.alias == alias)
@@ -402,6 +414,7 @@ impl App {
                     t!("st.rdp_opening", alias = host.alias)
                 });
                 self.rdp_sessions.push(s);
+                self.mark_used(idx);
             }
             Err(e) => self.set_status(t!("st.rdp_failed", err = format!("{e:#}"))),
         }
@@ -424,6 +437,7 @@ impl App {
                 Ok(s) => {
                     self.sessions.push(s);
                     self.active = self.sessions.len() - 1;
+                    self.mark_used(idx);
                 }
                 Err(e) => return self.set_status(t!("st.connect_failed", err = format!("{e:#}"))),
             }
@@ -495,7 +509,7 @@ impl App {
             .collect()
     }
 
-    fn selected_host(&self) -> Option<usize> {
+    pub fn selected_host(&self) -> Option<usize> {
         self.visible().get(self.table.selected()?).copied()
     }
 
@@ -512,6 +526,14 @@ impl App {
             v.save(&self.store)?;
         }
         sshconfig::write(&self.store.hosts)
+    }
+
+    /// Guarda a hora da conexão. Erro ao salvar só aparece no status: não impede a conexão.
+    fn mark_used(&mut self, idx: usize) {
+        self.store.hosts[idx].last_used = Some(vault::now());
+        if let Err(e) = self.persist() {
+            self.set_status(t!("st.save_error", err = format!("{e:#}")));
+        }
     }
 
     fn persist_or_report(&mut self, ok_msg: &str) {
@@ -764,6 +786,7 @@ impl App {
                 if let Some(i) = self.selected_host() {
                     self.copy_password(i);
                     self.pending = Some(External::Ssh(self.store.hosts[i].alias.clone()));
+                    self.mark_used(i);
                 }
             }
             KeyCode::Char('K') => {
@@ -941,8 +964,19 @@ impl App {
         }
         let alias = host.alias.clone();
         match editing {
-            Some(i) => self.store.hosts[i] = host,
-            None => self.store.hosts.push(host),
+            Some(i) => {
+                let old = &self.store.hosts[i];
+                self.store.hosts[i] = Host {
+                    last_used: old.last_used,
+                    created: old.created,
+                    updated: Some(vault::now()),
+                    ..host
+                };
+            }
+            None => self.store.hosts.push(Host {
+                created: Some(vault::now()),
+                ..host
+            }),
         }
         self.mode = Mode::List;
         self.persist_or_report(&t!("st.saved", alias = alias));
@@ -993,7 +1027,10 @@ impl App {
         let mut added = 0;
         for h in found {
             if !self.store.hosts.iter().any(|x| x.alias == h.alias) {
-                self.store.hosts.push(h);
+                self.store.hosts.push(Host {
+                    created: Some(vault::now()),
+                    ..h
+                });
                 added += 1;
             }
         }

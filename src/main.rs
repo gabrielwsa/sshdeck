@@ -16,7 +16,10 @@ use ratatui::{
     DefaultTerminal,
     crossterm::{
         cursor,
-        event::{self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyEventKind},
+        event::{
+            self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste,
+            EnableMouseCapture, Event, KeyEventKind, MouseEventKind,
+        },
         execute, terminal,
     },
 };
@@ -40,9 +43,11 @@ fn main() -> Result<()> {
     lang::set(lang::detect());
 
     let mut terminal = ratatui::init();
-    execute!(stdout(), EnableBracketedPaste)?;
+    // sem capturar o mouse, o terminal transforma a roda em ↑/↓ e o shell remoto
+    // navega no histórico de comandos em vez de rolar a tela
+    execute!(stdout(), EnableBracketedPaste, EnableMouseCapture)?;
     let result = run(&mut terminal);
-    let _ = execute!(stdout(), DisableBracketedPaste);
+    let _ = execute!(stdout(), DisableBracketedPaste, DisableMouseCapture);
     ratatui::restore();
     let _ = execute!(stdout(), cursor::Show);
     result
@@ -75,13 +80,26 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()> {
                 match event::read()? {
                     Event::Key(k) if k.kind == KeyEventKind::Press => app.on_key(k),
                     Event::Paste(text) => app.on_paste(&text),
+                    Event::Mouse(m) => {
+                        if !matches!(
+                            m.kind,
+                            MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
+                        ) {
+                            // movimento chega a todo instante: não redesenha por ele
+                            if !event::poll(Duration::ZERO)? {
+                                break;
+                            }
+                            continue;
+                        }
+                        app.on_mouse(m);
+                    }
                     _ => {}
                 }
+                needs_draw = true;
                 if app.quit || app.pending.is_some() || !event::poll(Duration::ZERO)? {
                     break;
                 }
             }
-            needs_draw = true;
         }
         let snapshot = |a: &App| (a.open_count(), a.status.as_ref().map(|s| s.1));
         let before = snapshot(&app);
@@ -125,7 +143,7 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()> {
 
 /// Sai da TUI, executa `f` no terminal normal e volta.
 fn suspended<T>(terminal: &mut DefaultTerminal, f: impl FnOnce() -> T) -> Result<T> {
-    execute!(stdout(), DisableBracketedPaste)?;
+    execute!(stdout(), DisableBracketedPaste, DisableMouseCapture)?;
     ratatui::restore();
     // o ratatui esconde o cursor enquanto desenha; o ssh precisa dele visível
     execute!(stdout(), cursor::Show)?;
@@ -135,6 +153,7 @@ fn suspended<T>(terminal: &mut DefaultTerminal, f: impl FnOnce() -> T) -> Result
     execute!(
         stdout(),
         EnableBracketedPaste,
+        EnableMouseCapture,
         terminal::Clear(terminal::ClearType::All)
     )?;
     Ok(out)

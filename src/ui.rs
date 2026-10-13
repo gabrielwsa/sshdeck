@@ -77,6 +77,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let [sidebar, term] = workspace_columns(main);
     // tamanho do terminal embutido = área interna do painel central
     app.term_size = (term.height.saturating_sub(2), term.width.saturating_sub(2));
+    app.term_area = term;
 
     if app.sessions.is_empty() {
         draw_list(f, app, main);

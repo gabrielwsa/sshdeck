@@ -135,6 +135,34 @@ impl Session {
         }
     }
 
+    /// Roda do mouse. Em tela alternativa (less, vim, htop) não há histórico: manda ↑/↓,
+    /// como os terminais fazem; no shell, rola o histórico.
+    pub fn wheel(&mut self, up: bool) {
+        const LINES: usize = 3;
+        let (alternate, app_cursor) = {
+            let p = self.parser.lock().unwrap();
+            (
+                p.screen().alternate_screen(),
+                p.screen().application_cursor(),
+            )
+        };
+        if alternate {
+            let arrow = match (up, app_cursor) {
+                (true, true) => "\x1bOA",
+                (true, false) => "\x1b[A",
+                (false, true) => "\x1bOB",
+                (false, false) => "\x1b[B",
+            };
+            self.write(arrow.repeat(LINES).as_bytes());
+        } else {
+            self.scroll(if up {
+                LINES as isize
+            } else {
+                -(LINES as isize)
+            });
+        }
+    }
+
     /// Rola o histórico: positivo sobe, negativo desce.
     pub fn scroll(&mut self, delta: isize) {
         let mut p = self.parser.lock().unwrap();

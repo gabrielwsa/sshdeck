@@ -8,7 +8,8 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use ratatui::{
-    crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
+    crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind},
+    layout::{Position, Rect},
     widgets::TableState,
 };
 use rust_i18n::t;
@@ -267,6 +268,8 @@ pub struct App {
     pub term_focus: bool,
     /// tamanho do painel do terminal, calculado pela UI
     pub term_size: (u16, u16),
+    /// Onde o painel do terminal foi desenhado, para saber se a roda do mouse está sobre ele.
+    pub term_area: Rect,
     /// marcado pelas sessões quando chega saída nova
     pub output: Arc<AtomicBool>,
 }
@@ -300,6 +303,7 @@ impl App {
             active: 0,
             term_focus: false,
             term_size: (24, 80),
+            term_area: Rect::default(),
             output: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -536,6 +540,26 @@ impl App {
     }
 
     // ---------- teclado ----------
+
+    /// Roda do mouse: sobre o terminal rola a sessão; no resto da tela vale como ↑/↓.
+    pub fn on_mouse(&mut self, m: MouseEvent) {
+        let up = match m.kind {
+            MouseEventKind::ScrollUp => true,
+            MouseEventKind::ScrollDown => false,
+            _ => return,
+        };
+        let over_term = matches!(self.mode, Mode::List)
+            && !self.sessions.is_empty()
+            && self.term_area.contains(Position::new(m.column, m.row));
+        if over_term {
+            self.sessions[self.active].wheel(up);
+            return;
+        }
+        let key = KeyEvent::from(if up { KeyCode::Up } else { KeyCode::Down });
+        let focus = std::mem::replace(&mut self.term_focus, false);
+        self.on_key(key);
+        self.term_focus = focus;
+    }
 
     pub fn on_key(&mut self, key: KeyEvent) {
         if self.term_focus && matches!(self.mode, Mode::List) && !self.sessions.is_empty() {

@@ -700,7 +700,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
             k("q", t!("h.quit")),
         ],
     };
-    f.render_widget(Paragraph::new(hints(&keys)), area);
+    f.render_widget(Paragraph::new(hints(&fit_hints(keys, area.width))), area);
 }
 
 fn confirm_hints() -> Vec<Hint> {
@@ -732,6 +732,19 @@ fn draw_status(f: &mut Frame, app: &App, main: Rect) {
         .right_aligned(),
         area,
     );
+}
+
+/// Tira atalhos do fim até caber na largura; o `?` (ajuda, que lista todos) nunca sai.
+fn fit_hints(mut keys: Vec<Hint>, width: u16) -> Vec<Hint> {
+    while hints(&keys).width() > width as usize {
+        match keys.iter().rposition(|(k, _)| k != "?") {
+            Some(i) if keys.len() > 1 => {
+                keys.remove(i);
+            }
+            _ => break,
+        }
+    }
+    keys
 }
 
 fn hints(keys: &[Hint]) -> Line<'static> {

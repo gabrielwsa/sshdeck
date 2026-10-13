@@ -264,7 +264,14 @@ fn draw_host_side(f: &mut Frame, h: &Host, connection: Option<bool>, collecting:
         rows.push((t!("info.hostname"), value(i.map(|i| i.hostname.clone()))));
         rows.push((
             t!("info.kernel"),
-            value(i.map(|i| format!("{} ({})", i.kernel, i.arch))),
+            // no CentOS/RHEL o kernel já termina com a arquitetura (…el7.x86_64)
+            value(i.map(|i| {
+                if i.kernel.ends_with(&i.arch) {
+                    i.kernel.clone()
+                } else {
+                    format!("{} ({})", i.kernel, i.arch)
+                }
+            })),
         ));
         rows.push((
             t!("info.hardware"),
@@ -329,7 +336,13 @@ fn draw_host_side(f: &mut Frame, h: &Host, connection: Option<bool>, collecting:
         + 2;
 
     let mut lines: Vec<Line> = Vec::new();
-    lines.extend(rows.into_iter().map(|(label, value)| {
+    // cada campo numa linha só: o que não cabe é cortado com "…" (só as notas quebram)
+    let room = (area.width as usize).saturating_sub(4 + width);
+    lines.extend(rows.into_iter().map(|(label, mut value)| {
+        if value.content.chars().count() > room {
+            let cut: String = value.content.chars().take(room.saturating_sub(1)).collect();
+            value.content = format!("{cut}…").into();
+        }
         Line::from(vec![
             Span::styled(format!("{label:<width$}"), Style::new().dark_gray()),
             value,

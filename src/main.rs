@@ -62,7 +62,13 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()> {
             needs_draw = false;
         }
 
-        let timeout = if app.sessions.is_empty() { 250 } else { 4 };
+        let timeout = if !app.sessions.is_empty() {
+            4
+        } else if app.rdp_connecting() {
+            20
+        } else {
+            250
+        };
         if event::poll(Duration::from_millis(timeout))? {
             // trata todos os eventos pendentes antes de redesenhar (digitação rápida, colar)
             loop {

@@ -36,7 +36,7 @@ As traduções ficam em `locales/app.yml`, com as três línguas lado a lado.
 | Config SSH gerada | `~/.ssh/sshdeck.conf` | `600` | Não, mas **não tem senhas**: só Host, HostName, User, Port e IdentityFile |
 | Seu config SSH | `~/.ssh/config`: o sshdeck só coloca `Include ~/.ssh/sshdeck.conf` na 1ª linha | `600` | Não |
 | Backup do seu config | `~/.ssh/config.sshdeck.bak`, criado uma única vez, antes da 1ª alteração | | Não |
-| Logs do RDP | `~/.cache/sshdeck/rdp-<alias>.log` (mensagens do FreeRDP e do túnel) | pasta `700`, arquivo `600` | Não, mas **não tem senhas** |
+| Logs do RDP | `~/.cache/sshdeck/rdp-<alias>.log` (mensagens do FreeRDP e do túnel, e o tempo de cada etapa) | pasta `700`, arquivo `600` | Não, mas **não tem senhas** |
 | Certificados RDP aceitos | `~/.config/freerdp/` (gerenciado pelo próprio FreeRDP) | | Não |
 
 Não existe banco de dados separado: **o cofre é o banco**. É um único arquivo com tudo dentro,
@@ -104,6 +104,9 @@ alias existir nos dois arquivos, vale o do sshdeck.
   O sshdeck abre `ssh -N -L` por esse host SSH (preenchendo a senha dele), espera o túnel subir e
   conecta o RDP através dele. A chave do host do túnel precisa já ser conhecida: conecte nele
   uma vez por SSH antes.
+- O papel de parede do Windows vem desligado (`-wallpaper`): a primeira tela aparece antes.
+- O log do RDP registra quanto tempo levou cada etapa (`[sshdeck +0.14s] tunnel ready`), para ver
+  onde a abertura demora.
 - Enquanto a janela está aberta, o ícone do host fica verde. `x` fecha a janela (e o túnel).
   Se o FreeRDP falhar, o erro aparece na tela e os detalhes ficam no log.
 - `s` e `K` são só para hosts SSH.

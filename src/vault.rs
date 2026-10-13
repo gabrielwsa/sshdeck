@@ -56,6 +56,11 @@ pub struct Host {
     pub created: Option<u64>,
     #[serde(default)]
     pub updated: Option<u64>,
+    /// resposta ao popup de coleta: `None` = ainda não perguntado
+    #[serde(default)]
+    pub sysinfo_allowed: Option<bool>,
+    #[serde(default)]
+    pub sysinfo: Option<crate::sysinfo::SysInfo>,
 }
 
 /// Segundos desde 1970, para os campos de data dos hosts.

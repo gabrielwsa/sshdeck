@@ -5,6 +5,7 @@ mod lang;
 mod rdp;
 mod session;
 mod sshconfig;
+mod sysinfo;
 mod ui;
 mod vault;
 

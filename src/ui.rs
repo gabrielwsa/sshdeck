@@ -21,8 +21,9 @@ const KEY_ICON: &str = "\u{f023}";
 const SSH_ICON: &str = "\u{f120}";
 const RDP_ICON: &str = "\u{f17a}";
 
-/// Ícone do tipo: verde quando há conexão aberta (negrito se for a ativa).
-fn kind_icon(h: &Host, connected: bool, active: bool) -> Span<'static> {
+/// Ícone do tipo: verde quando há conexão aberta (negrito se for a ativa). Na linha
+/// selecionada, sem conexão, usa a cor do texto: cinza sobre o fundo cinza sumia.
+fn kind_icon(h: &Host, connected: bool, active: bool, selected: bool) -> Span<'static> {
     let icon = match h.kind {
         Kind::Ssh => SSH_ICON,
         Kind::Rdp => RDP_ICON,
@@ -30,6 +31,7 @@ fn kind_icon(h: &Host, connected: bool, active: bool) -> Span<'static> {
     let style = match (connected, active) {
         (true, true) => Style::new().fg(Color::Green).bold(),
         (true, false) => Style::new().fg(Color::Green),
+        _ if selected => Style::new(),
         _ => Style::new().dark_gray(),
     };
     Span::styled(icon, style)
@@ -107,21 +109,27 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
 fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
     let visible = app.visible();
-    let rows = visible.iter().map(|&i| {
+    let selected = app.table.selected();
+    let rows = visible.iter().enumerate().map(|(pos, &i)| {
         let h = &app.store.hosts[i];
+        let sel = selected == Some(pos);
         let key = if h.password.is_empty() {
             Span::raw("  ")
         } else {
             Span::raw(KEY_ICON)
         };
         Row::new(vec![
-            Cell::from(kind_icon(h, app.has_session(&h.alias), false)),
+            Cell::from(kind_icon(h, app.has_session(&h.alias), false, sel)),
             Cell::from(key),
             Cell::from(h.alias.clone()).bold(),
             Cell::from(h.user.clone()),
             Cell::from(h.hostname.clone()),
             Cell::from(h.port.to_string()),
-            Cell::from(extra(h)).dim(),
+            if sel {
+                Cell::from(extra(h))
+            } else {
+                Cell::from(extra(h)).dim()
+            },
         ])
     });
 
@@ -209,17 +217,24 @@ fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
 
     let active_alias = app.active_session().map(|s| s.alias.clone());
     let visible = app.visible();
+    let selected = app.table.selected();
     let rows: Vec<Row> = visible
         .iter()
-        .map(|&i| {
+        .enumerate()
+        .map(|(pos, &i)| {
             let h = &app.store.hosts[i];
+            let sel = selected == Some(pos);
             let active = Some(&h.alias) == active_alias.as_ref();
             let key = if h.password.is_empty() { "" } else { KEY_ICON };
             Row::new(vec![
-                Cell::from(kind_icon(h, app.has_session(&h.alias), active)),
+                Cell::from(kind_icon(h, app.has_session(&h.alias), active, sel)),
                 Cell::from(key),
                 Cell::from(h.alias.clone()).bold(),
-                Cell::from(h.hostname.clone()).dim(),
+                if sel {
+                    Cell::from(h.hostname.clone())
+                } else {
+                    Cell::from(h.hostname.clone()).dim()
+                },
             ])
         })
         .collect();

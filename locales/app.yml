@@ -1,0 +1,695 @@
+_version: 2
+
+# --- campos do formulário ---
+field.kind:
+  pt: "Tipo"
+  en: "Type"
+  es: "Tipo"
+field.alias:
+  pt: "Alias"
+  en: "Alias"
+  es: "Alias"
+field.hostname:
+  pt: "HostName / IP"
+  en: "HostName / IP"
+  es: "HostName / IP"
+field.user:
+  pt: "User"
+  en: "User"
+  es: "Usuario"
+field.domain:
+  pt: "Domínio"
+  en: "Domain"
+  es: "Dominio"
+field.port:
+  pt: "Port"
+  en: "Port"
+  es: "Puerto"
+field.identity:
+  pt: "IdentityFile"
+  en: "IdentityFile"
+  es: "IdentityFile"
+field.resolution:
+  pt: "Resolução"
+  en: "Resolution"
+  es: "Resolución"
+field.share:
+  pt: "Pasta compart."
+  en: "Shared folder"
+  es: "Carpeta compart."
+field.gateway:
+  pt: "Túnel SSH via"
+  en: "SSH tunnel via"
+  es: "Túnel SSH vía"
+field.password:
+  pt: "Password"
+  en: "Password"
+  es: "Contraseña"
+field.notes:
+  pt: "Notas"
+  en: "Notes"
+  es: "Notas"
+
+# --- validação do formulário ---
+err.alias_required:
+  pt: "Alias é obrigatório"
+  en: "Alias is required"
+  es: "El alias es obligatorio"
+err.alias_chars:
+  pt: "Alias não pode ter espaços nem * ? ! # /"
+  en: "Alias cannot contain spaces or * ? ! # /"
+  es: "El alias no puede tener espacios ni * ? ! # /"
+err.hostname:
+  pt: "HostName / IP inválido"
+  en: "Invalid HostName / IP"
+  es: "HostName / IP inválido"
+err.port:
+  pt: "Porta inválida"
+  en: "Invalid port"
+  es: "Puerto inválido"
+err.rdp_user:
+  pt: "RDP precisa de User"
+  en: "RDP requires a User"
+  es: "RDP requiere un usuario"
+err.resolution:
+  pt: "Resolução inválida: use vazio, full, 1920x1080 ou 90%"
+  en: "Invalid resolution: use empty, full, 1920x1080 or 90%"
+  es: "Resolución inválida: use vacío, full, 1920x1080 o 90%"
+err.duplicate:
+  pt: "Já existe um host com alias '%{alias}'"
+  en: "A host with alias '%{alias}' already exists"
+  es: "Ya existe un host con alias '%{alias}'"
+err.gateway:
+  pt: "Túnel SSH via: '%{gw}' não é um host SSH cadastrado"
+  en: "SSH tunnel via: '%{gw}' is not a saved SSH host"
+  es: "Túnel SSH vía: '%{gw}' no es un host SSH registrado"
+
+# --- mensagens de status ---
+st.rdp_closed:
+  pt: "RDP %{alias} fechado"
+  en: "RDP %{alias} closed"
+  es: "RDP %{alias} cerrado"
+st.rdp_error:
+  pt: "RDP %{alias}: %{err}"
+  en: "RDP %{alias}: %{err}"
+  es: "RDP %{alias}: %{err}"
+st.sessions_ended:
+  pt: "Sessão encerrada: %{list}"
+  en: "Session ended: %{list}"
+  es: "Sesión terminada: %{list}"
+st.rdp_already:
+  pt: "RDP %{alias} já está aberto"
+  en: "RDP %{alias} is already open"
+  es: "RDP %{alias} ya está abierto"
+st.gateway_missing:
+  pt: "Túnel SSH via '%{gw}': host não existe"
+  en: "SSH tunnel via '%{gw}': host does not exist"
+  es: "Túnel SSH vía '%{gw}': el host no existe"
+st.rdp_opening_tunnel:
+  pt: "Abrindo túnel via %{gw} e RDP %{alias}…"
+  en: "Opening tunnel via %{gw} and RDP %{alias}…"
+  es: "Abriendo túnel vía %{gw} y RDP %{alias}…"
+st.rdp_opening:
+  pt: "Abrindo RDP %{alias}…"
+  en: "Opening RDP %{alias}…"
+  es: "Abriendo RDP %{alias}…"
+st.rdp_failed:
+  pt: "Falha no RDP: %{err}"
+  en: "RDP failed: %{err}"
+  es: "Fallo en RDP: %{err}"
+st.connect_failed:
+  pt: "Falha ao conectar: %{err}"
+  en: "Connection failed: %{err}"
+  es: "Error al conectar: %{err}"
+st.pw_typed:
+  pt: "Senha de %{alias} digitada — aperte Enter"
+  en: "%{alias} password typed — press Enter"
+  es: "Contraseña de %{alias} escrita — presione Enter"
+st.no_password:
+  pt: "%{alias} não tem senha salva"
+  en: "%{alias} has no saved password"
+  es: "%{alias} no tiene contraseña guardada"
+st.save_error:
+  pt: "Erro ao salvar: %{err}"
+  en: "Error saving: %{err}"
+  es: "Error al guardar: %{err}"
+st.pw_copied:
+  pt: "Senha de %{alias} copiada (%{how}) — limpa em %{secs}s"
+  en: "%{alias} password copied (%{how}) — cleared in %{secs}s"
+  es: "Contraseña de %{alias} copiada (%{how}) — se borra en %{secs}s"
+st.sshconfig_error:
+  pt: "Erro no ssh config: %{err}"
+  en: "ssh config error: %{err}"
+  es: "Error en ssh config: %{err}"
+st.vault_created:
+  pt: "Cofre criado. Aperte 'a' para adicionar um host ou 'i' para importar do ~/.ssh/config"
+  en: "Vault created. Press 'a' to add a host or 'i' to import from ~/.ssh/config"
+  es: "Bóveda creada. Presione 'a' para agregar un host o 'i' para importar de ~/.ssh/config"
+st.master_changed:
+  pt: "Senha mestra alterada"
+  en: "Master password changed"
+  es: "Contraseña maestra cambiada"
+st.session_closed:
+  pt: "Sessão %{alias} fechada"
+  en: "Session %{alias} closed"
+  es: "Sesión %{alias} cerrada"
+st.ssh_only:
+  pt: "Esse atalho é só para hosts SSH"
+  en: "This shortcut is only for SSH hosts"
+  es: "Este atajo es solo para hosts SSH"
+st.saved:
+  pt: "'%{alias}' salvo"
+  en: "'%{alias}' saved"
+  es: "'%{alias}' guardado"
+st.removed:
+  pt: "'%{alias}' removido"
+  en: "'%{alias}' removed"
+  es: "'%{alias}' eliminado"
+st.import_error:
+  pt: "Erro ao importar: %{err}"
+  en: "Import error: %{err}"
+  es: "Error al importar: %{err}"
+st.import_none:
+  pt: "Nada novo para importar do ~/.ssh/config"
+  en: "Nothing new to import from ~/.ssh/config"
+  es: "Nada nuevo para importar de ~/.ssh/config"
+st.imported:
+  pt: "%{n} host(s) importado(s) — use 'e' para adicionar as senhas"
+  en: "%{n} host(s) imported — use 'e' to add the passwords"
+  es: "%{n} host(s) importado(s) — use 'e' para agregar las contraseñas"
+st.lang:
+  pt: "Idioma: Português"
+  en: "Language: English"
+  es: "Idioma: Español"
+
+# --- senha mestra ---
+pw.min_len:
+  pt: "Use pelo menos 4 caracteres"
+  en: "Use at least 4 characters"
+  es: "Use al menos 4 caracteres"
+pw.mismatch:
+  pt: "As senhas não conferem, tente de novo"
+  en: "Passwords don't match, try again"
+  es: "Las contraseñas no coinciden, intente de nuevo"
+pw.title_unlock:
+  pt: "Desbloquear cofre"
+  en: "Unlock vault"
+  es: "Desbloquear bóveda"
+pw.title_create:
+  pt: "Criar cofre"
+  en: "Create vault"
+  es: "Crear bóveda"
+pw.title_rekey:
+  pt: "Nova senha mestra"
+  en: "New master password"
+  es: "Nueva contraseña maestra"
+pw.prompt_unlock:
+  pt: "Senha mestra:"
+  en: "Master password:"
+  es: "Contraseña maestra:"
+pw.prompt_define:
+  pt: "Defina a senha mestra:"
+  en: "Choose a master password:"
+  es: "Defina la contraseña maestra:"
+pw.prompt_confirm:
+  pt: "Confirme a senha mestra:"
+  en: "Confirm the master password:"
+  es: "Confirme la contraseña maestra:"
+pw.warning:
+  pt: "Ela protege todas as senhas salvas. Não esqueça!"
+  en: "It protects all saved passwords. Don't forget it!"
+  es: "Protege todas las contraseñas guardadas. ¡No la olvide!"
+
+# --- cofre ---
+vault.reading:
+  pt: "lendo %{path}"
+  en: "reading %{path}"
+  es: "leyendo %{path}"
+vault.invalid:
+  pt: "arquivo de cofre inválido"
+  en: "invalid vault file"
+  es: "archivo de bóveda inválido"
+vault.wrong_password:
+  pt: "senha mestra incorreta"
+  en: "wrong master password"
+  es: "contraseña maestra incorrecta"
+vault.corrupt:
+  pt: "cofre corrompido"
+  en: "corrupted vault"
+  es: "bóveda corrupta"
+vault.encrypt_failed:
+  pt: "falha ao criptografar"
+  en: "encryption failed"
+  es: "fallo al cifrar"
+vault.no_dir:
+  pt: "caminho do cofre sem diretório"
+  en: "vault path has no directory"
+  es: "la ruta de la bóveda no tiene directorio"
+
+# --- RDP ---
+rdp.tunnel_down:
+  pt: "túnel SSH caiu: %{err}"
+  en: "SSH tunnel dropped: %{err}"
+  es: "el túnel SSH se cayó: %{err}"
+rdp.tunnel_timeout:
+  pt: "túnel SSH não respondeu a tempo"
+  en: "SSH tunnel did not respond in time"
+  es: "el túnel SSH no respondió a tiempo"
+rdp.see_log:
+  pt: "veja %{path}"
+  en: "see %{path}"
+  es: "vea %{path}"
+rdp.not_found:
+  pt: "FreeRDP não encontrado (instale o pacote freerdp)"
+  en: "FreeRDP not found (install the freerdp package)"
+  es: "FreeRDP no encontrado (instale el paquete freerdp)"
+rdp.spawn_tunnel:
+  pt: "executando ssh para o túnel"
+  en: "running ssh for the tunnel"
+  es: "ejecutando ssh para el túnel"
+rdp.spawn_client:
+  pt: "executando o FreeRDP"
+  en: "running FreeRDP"
+  es: "ejecutando FreeRDP"
+rdp.no_cache:
+  pt: "sem diretório de cache"
+  en: "no cache directory"
+  es: "sin directorio de caché"
+
+# --- sessão ssh embutida / ssh config ---
+session.pty:
+  pt: "abrindo pty: %{err}"
+  en: "opening pty: %{err}"
+  es: "abriendo pty: %{err}"
+session.spawn:
+  pt: "executando ssh: %{err}"
+  en: "running ssh: %{err}"
+  es: "ejecutando ssh: %{err}"
+ssh.no_home:
+  pt: "HOME não encontrado"
+  en: "HOME not found"
+  es: "HOME no encontrado"
+hint.agent:
+  pt: "vazio = %{n} chave(s) do ssh-agent"
+  en: "empty = %{n} ssh-agent key(s)"
+  es: "vacío = %{n} clave(s) del ssh-agent"
+hint.file:
+  pt: "vazio = %{path}"
+  en: "empty = %{path}"
+  es: "vacío = %{path}"
+hint.none:
+  pt: "vazio = nenhuma chave em ~/.ssh (rode ssh-keygen)"
+  en: "empty = no key in ~/.ssh (run ssh-keygen)"
+  es: "vacío = ninguna clave en ~/.ssh (ejecute ssh-keygen)"
+
+# --- comandos em tela cheia ---
+ext.ssh_banner:
+  pt: "→ ssh %{alias}   (senha no clipboard: Ctrl+Shift+V)"
+  en: "→ ssh %{alias}   (password in clipboard: Ctrl+Shift+V)"
+  es: "→ ssh %{alias}   (contraseña en el portapapeles: Ctrl+Shift+V)"
+ext.ssh_ended:
+  pt: "Sessão com %{alias} encerrada"
+  en: "Session with %{alias} ended"
+  es: "Sesión con %{alias} terminada"
+ext.ssh_exit:
+  pt: "ssh %{alias} saiu com código %{code}"
+  en: "ssh %{alias} exited with code %{code}"
+  es: "ssh %{alias} salió con código %{code}"
+ext.ssh_failed:
+  pt: "Falha ao executar ssh: %{err}"
+  en: "Failed to run ssh: %{err}"
+  es: "Error al ejecutar ssh: %{err}"
+ext.copyid_ok:
+  pt: "Chave copiada para %{alias}"
+  en: "Key copied to %{alias}"
+  es: "Clave copiada a %{alias}"
+ext.copyid_failed:
+  pt: "ssh-copy-id para %{alias} falhou"
+  en: "ssh-copy-id to %{alias} failed"
+  es: "ssh-copy-id a %{alias} falló"
+ext.copyid_error:
+  pt: "Falha ao executar ssh-copy-id: %{err}"
+  en: "Failed to run ssh-copy-id: %{err}"
+  es: "Error al ejecutar ssh-copy-id: %{err}"
+ext.done:
+  pt: "Pronto — Enter para voltar ao sshdeck"
+  en: "Done — Enter to return to sshdeck"
+  es: "Listo — Enter para volver a sshdeck"
+ext.failed:
+  pt: "Falhou — Enter para voltar ao sshdeck"
+  en: "Failed — Enter to return to sshdeck"
+  es: "Falló — Enter para volver a sshdeck"
+
+# --- interface ---
+ui.extra_domain:
+  pt: "domínio %{d}"
+  en: "domain %{d}"
+  es: "dominio %{d}"
+ui.extra_via:
+  pt: "via %{gw}"
+  en: "via %{gw}"
+  es: "vía %{gw}"
+ui.lang_title:
+  pt: "Idioma"
+  en: "Language"
+  es: "Idioma"
+ui.delete_title:
+  pt: "Apagar"
+  en: "Delete"
+  es: "Eliminar"
+ui.delete_q:
+  pt: "Apagar '%{alias}' e a senha salva?"
+  en: "Delete '%{alias}' and its saved password?"
+  es: "¿Eliminar '%{alias}' y su contraseña guardada?"
+ui.quit_title:
+  pt: "Sair"
+  en: "Quit"
+  es: "Salir"
+ui.quit_q:
+  pt: "Sair e fechar %{n} conexão(ões) abertas?"
+  en: "Quit and close %{n} open connection(s)?"
+  es: "¿Salir y cerrar %{n} conexión(es) abierta(s)?"
+ui.filter:
+  pt: "filtro: %{f}"
+  en: "filter: %{f}"
+  es: "filtro: %{f}"
+ui.col_user:
+  pt: "User"
+  en: "User"
+  es: "Usuario"
+ui.col_port:
+  pt: "Port"
+  en: "Port"
+  es: "Puerto"
+ui.col_extra:
+  pt: "Extra"
+  en: "Extra"
+  es: "Extra"
+ui.empty:
+  pt: "Nenhum host ainda.\n\n'a' adiciona um host  ·  'i' importa do ~/.ssh/config"
+  en: "No hosts yet.\n\n'a' adds a host  ·  'i' imports from ~/.ssh/config"
+  es: "Todavía no hay hosts.\n\n'a' agrega un host  ·  'i' importa de ~/.ssh/config"
+ui.no_match:
+  pt: "Nenhum host corresponde ao filtro."
+  en: "No host matches the filter."
+  es: "Ningún host coincide con el filtro."
+ui.servers:
+  pt: "Servidores"
+  en: "Servers"
+  es: "Servidores"
+ui.connection:
+  pt: "Conexão"
+  en: "Connection"
+  es: "Conexión"
+ui.history:
+  pt: "histórico -%{n}"
+  en: "history -%{n}"
+  es: "historial -%{n}"
+info.user:
+  pt: "user"
+  en: "user"
+  es: "usuario"
+info.host:
+  pt: "host"
+  en: "host"
+  es: "host"
+info.port:
+  pt: "porta"
+  en: "port"
+  es: "puerto"
+info.key:
+  pt: "chave"
+  en: "key"
+  es: "llave"
+info.password:
+  pt: "senha"
+  en: "password"
+  es: "contraseña"
+info.time:
+  pt: "tempo"
+  en: "time"
+  es: "tiempo"
+info.not_saved:
+  pt: "não salva"
+  en: "not saved"
+  es: "no guardada"
+info.saved:
+  pt: "%{icon} salva (Alt+P)"
+  en: "%{icon} saved (Alt+P)"
+  es: "%{icon} guardada (Alt+P)"
+form.new:
+  pt: "Novo host"
+  en: "New host"
+  es: "Nuevo host"
+form.edit:
+  pt: "Editar host"
+  en: "Edit host"
+  es: "Editar host"
+form.toggle:
+  pt: "←/→ troca"
+  en: "←/→ switch"
+  es: "←/→ cambia"
+ph.domain:
+  pt: "vazio = conta local"
+  en: "empty = local account"
+  es: "vacío = cuenta local"
+ph.resolution:
+  pt: "vazio = janela 80% redimensionável · full · 1920x1080 · 90%"
+  en: "empty = resizable 80% window · full · 1920x1080 · 90%"
+  es: "vacío = ventana 80% redimensionable · full · 1920x1080 · 90%"
+ph.share:
+  pt: "vazio = nenhuma · ex.: ~/Downloads"
+  en: "empty = none · e.g. ~/Downloads"
+  es: "vacío = ninguna · ej.: ~/Downloads"
+ph.gateway:
+  pt: "vazio = conexão direta · ex.: alias de um host SSH"
+  en: "empty = direct connection · e.g. alias of an SSH host"
+  es: "vacío = conexión directa · ej.: alias de un host SSH"
+
+# --- atalhos do rodapé ---
+key.yes:
+  pt: "s"
+  en: "y"
+  es: "s"
+key.other:
+  pt: "outra tecla"
+  en: "other key"
+  es: "otra tecla"
+key.any:
+  pt: "qualquer tecla"
+  en: "any key"
+  es: "cualquier tecla"
+key.arrows_space:
+  pt: "←/→ ou espaço"
+  en: "←/→ or space"
+  es: "←/→ o espacio"
+key.type:
+  pt: "digite"
+  en: "type"
+  es: "escriba"
+h.confirm:
+  pt: "confirmar"
+  en: "confirm"
+  es: "confirmar"
+h.cancel:
+  pt: "cancelar"
+  en: "cancel"
+  es: "cancelar"
+h.quit:
+  pt: "sair"
+  en: "quit"
+  es: "salir"
+h.next:
+  pt: "próximo"
+  en: "next"
+  es: "siguiente"
+h.prev:
+  pt: "anterior"
+  en: "previous"
+  es: "anterior"
+h.save:
+  pt: "salvar"
+  en: "save"
+  es: "guardar"
+h.show_pw:
+  pt: "mostrar senha"
+  en: "show password"
+  es: "mostrar contraseña"
+h.clear_field:
+  pt: "limpar campo"
+  en: "clear field"
+  es: "limpiar campo"
+h.yes:
+  pt: "sim"
+  en: "yes"
+  es: "sí"
+h.no:
+  pt: "não"
+  en: "no"
+  es: "no"
+h.close:
+  pt: "fechar"
+  en: "close"
+  es: "cerrar"
+h.filter:
+  pt: "filtrar"
+  en: "filter"
+  es: "filtrar"
+h.choose:
+  pt: "escolher"
+  en: "choose"
+  es: "elegir"
+h.ok:
+  pt: "ok"
+  en: "ok"
+  es: "ok"
+h.clear:
+  pt: "limpar"
+  en: "clear"
+  es: "limpiar"
+h.panel:
+  pt: "painel"
+  en: "panel"
+  es: "panel"
+h.type_pw:
+  pt: "digitar senha"
+  en: "type password"
+  es: "escribir contraseña"
+h.switch_session:
+  pt: "trocar sessão"
+  en: "switch session"
+  es: "cambiar sesión"
+h.history:
+  pt: "histórico"
+  en: "history"
+  es: "historial"
+h.connect:
+  pt: "conectar"
+  en: "connect"
+  es: "conectar"
+h.terminal:
+  pt: "terminal"
+  en: "terminal"
+  es: "terminal"
+h.close_session:
+  pt: "fechar sessão"
+  en: "close session"
+  es: "cerrar sesión"
+h.copy_pw:
+  pt: "copiar senha"
+  en: "copy password"
+  es: "copiar contraseña"
+h.add_edit_del:
+  pt: "add/editar/apagar"
+  en: "add/edit/delete"
+  es: "agregar/editar/eliminar"
+h.help:
+  pt: "ajuda"
+  en: "help"
+  es: "ayuda"
+h.fullscreen:
+  pt: "tela cheia"
+  en: "fullscreen"
+  es: "pantalla completa"
+h.import:
+  pt: "importar"
+  en: "import"
+  es: "importar"
+
+# --- ajuda (?) ---
+help.title:
+  pt: "Ajuda"
+  en: "Help"
+  es: "Ayuda"
+help.close:
+  pt: "qualquer tecla fecha"
+  en: "any key closes"
+  es: "cualquier tecla cierra"
+help.enter:
+  pt: "conecta: SSH no painel central, RDP em janela própria"
+  en: "connect: SSH in the center panel, RDP in its own window"
+  es: "conecta: SSH en el panel central, RDP en ventana propia"
+help.s:
+  pt: "conecta em tela cheia (ssh normal)"
+  en: "connect fullscreen (plain ssh)"
+  es: "conecta en pantalla completa (ssh normal)"
+help.tab:
+  pt: "vai para o terminal"
+  en: "go to the terminal"
+  es: "va a la terminal"
+help.x:
+  pt: "fecha a sessão (ou a janela RDP) do host"
+  en: "close the host's session (or RDP window)"
+  es: "cierra la sesión (o la ventana RDP) del host"
+help.k:
+  pt: "ssh-copy-id: instala sua chave no servidor (usa a senha salva)"
+  en: "ssh-copy-id: install your key on the server (uses the saved password)"
+  es: "ssh-copy-id: instala su clave en el servidor (usa la contraseña guardada)"
+help.c:
+  pt: "copia a senha para o clipboard"
+  en: "copy the password to the clipboard"
+  es: "copia la contraseña al portapapeles"
+help.a:
+  pt: "adiciona host"
+  en: "add host"
+  es: "agrega host"
+help.e:
+  pt: "edita host selecionado"
+  en: "edit selected host"
+  es: "edita el host seleccionado"
+help.d:
+  pt: "apaga host"
+  en: "delete host"
+  es: "elimina host"
+help.filter:
+  pt: "filtra por alias, user ou host"
+  en: "filter by alias, user or host"
+  es: "filtra por alias, usuario o host"
+help.i:
+  pt: "importa hosts do ~/.ssh/config"
+  en: "import hosts from ~/.ssh/config"
+  es: "importa hosts de ~/.ssh/config"
+help.rekey:
+  pt: "troca a senha mestra"
+  en: "change the master password"
+  es: "cambia la contraseña maestra"
+help.lang:
+  pt: "escolhe o idioma"
+  en: "choose the language"
+  es: "elige el idioma"
+help.nav:
+  pt: "navegação"
+  en: "navigation"
+  es: "navegación"
+help.quit:
+  pt: "sair"
+  en: "quit"
+  es: "salir"
+help.in_terminal:
+  pt: "No terminal:"
+  en: "In the terminal:"
+  es: "En la terminal:"
+help.panel:
+  pt: "volta para o painel (sessão continua)"
+  en: "back to the panel (session keeps running)"
+  es: "vuelve al panel (la sesión continúa)"
+help.altp:
+  pt: "digita a senha salva no terminal"
+  en: "type the saved password in the terminal"
+  es: "escribe la contraseña guardada en la terminal"
+help.switch:
+  pt: "troca de sessão"
+  en: "switch session"
+  es: "cambia de sesión"
+help.scroll:
+  pt: "rola o histórico"
+  en: "scroll history"
+  es: "desplaza el historial"
+help.tip_key:
+  pt: "Dica"
+  en: "Tip"
+  es: "Consejo"
+help.tip:
+  pt: "sudo su → Alt+P (ou Ctrl+Shift+V) → Enter"
+  en: "sudo su → Alt+P (or Ctrl+Shift+V) → Enter"
+  es: "sudo su → Alt+P (o Ctrl+Shift+V) → Enter"

@@ -4,6 +4,7 @@
 use anyhow::{Result, anyhow};
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use rust_i18n::t;
 use std::{
     io::{Read, Write},
     sync::{
@@ -38,7 +39,7 @@ impl Session {
                 pixel_width: 0,
                 pixel_height: 0,
             })
-            .map_err(|e| anyhow!("abrindo pty: {e}"))?;
+            .map_err(|e| anyhow!("{}", t!("session.pty", err = e)))?;
 
         let mut cmd = CommandBuilder::new("ssh");
         cmd.arg(alias);
@@ -49,7 +50,7 @@ impl Session {
         let child = pair
             .slave
             .spawn_command(cmd)
-            .map_err(|e| anyhow!("executando ssh: {e}"))?;
+            .map_err(|e| anyhow!("{}", t!("session.spawn", err = e)))?;
         drop(pair.slave);
 
         let mut reader = pair.master.try_clone_reader().map_err(|e| anyhow!("{e}"))?;

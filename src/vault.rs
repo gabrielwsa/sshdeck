@@ -6,6 +6,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use argon2::Argon2;
 use chacha20poly1305::{KeyInit, XChaCha20Poly1305, aead::Aead};
 use rand::RngCore;
+use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use std::{fs, io::Write, os::unix::fs::PermissionsExt, path::PathBuf};
 use zeroize::Zeroizing;
@@ -52,6 +53,9 @@ pub struct Host {
 #[derive(Serialize, Deserialize, Default)]
 pub struct Store {
     pub hosts: Vec<Host>,
+    /// idioma escolhido com a tecla L
+    #[serde(default)]
+    pub lang: Option<String>,
 }
 
 pub struct Vault {
@@ -78,10 +82,10 @@ impl Vault {
     }
 
     pub fn open(path: PathBuf, password: &str) -> Result<(Self, Store)> {
-        let data = fs::read(&path).with_context(|| format!("lendo {}", path.display()))?;
+        let data = fs::read(&path).with_context(|| t!("vault.reading", path = path.display()))?;
         let header = MAGIC.len() + SALT_LEN + NONCE_LEN;
         if data.len() < header || &data[..MAGIC.len()] != MAGIC {
-            bail!("arquivo de cofre inválido");
+            bail!("{}", t!("vault.invalid"));
         }
         let mut salt = [0u8; SALT_LEN];
         salt.copy_from_slice(&data[MAGIC.len()..MAGIC.len() + SALT_LEN]);
@@ -91,12 +95,12 @@ impl Vault {
         let plain = Zeroizing::new(
             cipher
                 .decrypt(
-                    nonce.try_into().map_err(|_| anyhow!("nonce inválido"))?,
+                    nonce.try_into().map_err(|_| anyhow!("invalid nonce"))?,
                     &data[header..],
                 )
-                .map_err(|_| anyhow!("senha mestra incorreta"))?,
+                .map_err(|_| anyhow!("{}", t!("vault.wrong_password")))?,
         );
-        let store: Store = serde_json::from_slice(&plain).context("cofre corrompido")?;
+        let store: Store = serde_json::from_slice(&plain).context(t!("vault.corrupt"))?;
         Ok((Self { path, salt, key }, store))
     }
 
@@ -117,15 +121,12 @@ impl Vault {
             .encrypt(
                 (&nonce[..])
                     .try_into()
-                    .map_err(|_| anyhow!("nonce inválido"))?,
+                    .map_err(|_| anyhow!("invalid nonce"))?,
                 plain.as_slice(),
             )
-            .map_err(|_| anyhow!("falha ao criptografar"))?;
+            .map_err(|_| anyhow!("{}", t!("vault.encrypt_failed")))?;
 
-        let dir = self
-            .path
-            .parent()
-            .context("caminho do cofre sem diretório")?;
+        let dir = self.path.parent().context(t!("vault.no_dir"))?;
         fs::create_dir_all(dir)?;
         fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
 
@@ -170,6 +171,7 @@ mod tests {
                 password: "s3nh@ x".into(),
                 ..Default::default()
             }],
+            ..Default::default()
         };
         v.save(&store).unwrap();
 

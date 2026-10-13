@@ -1,11 +1,14 @@
 mod app;
 mod askpass;
 mod clipboard;
+mod lang;
 mod rdp;
 mod session;
 mod sshconfig;
 mod ui;
 mod vault;
+
+rust_i18n::i18n!("locales", fallback = "en");
 
 use anyhow::Result;
 use app::{App, External};
@@ -17,6 +20,7 @@ use ratatui::{
         execute, terminal,
     },
 };
+use rust_i18n::t;
 use std::{
     io::{BufRead, stdout},
     process::Command,
@@ -32,6 +36,8 @@ fn main() -> Result<()> {
     if let Some(code) = askpass::run_if_requested() {
         std::process::exit(code);
     }
+
+    lang::set(lang::detect());
 
     let mut terminal = ratatui::init();
     execute!(stdout(), EnableBracketedPaste)?;
@@ -77,16 +83,18 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()> {
         needs_draw |= before != snapshot(&app);
 
         if let Some(ext) = app.pending.take() {
-            let msg = match ext {
+            let msg: String = match ext {
                 External::Ssh(alias) => {
                     let status = suspended(terminal, || {
-                        println!("→ ssh {alias}   (senha no clipboard: Ctrl+Shift+V)\n");
+                        println!("{}\n", t!("ext.ssh_banner", alias = alias));
                         Command::new("ssh").arg(&alias).status()
                     })?;
                     match status {
-                        Ok(s) if s.success() => format!("Sessão com {alias} encerrada"),
-                        Ok(s) => format!("ssh {alias} saiu com código {}", s.code().unwrap_or(-1)),
-                        Err(e) => format!("Falha ao executar ssh: {e}"),
+                        Ok(s) if s.success() => t!("ext.ssh_ended", alias = alias).into(),
+                        Ok(s) => {
+                            t!("ext.ssh_exit", alias = alias, code = s.code().unwrap_or(-1)).into()
+                        }
+                        Err(e) => t!("ext.ssh_failed", err = e).into(),
                     }
                 }
                 External::CopyId {
@@ -96,9 +104,9 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()> {
                 } => {
                     let status = suspended(terminal, || copy_id(&alias, &identity, &password))?;
                     match status {
-                        Ok(true) => format!("Chave copiada para {alias}"),
-                        Ok(false) => format!("ssh-copy-id para {alias} falhou"),
-                        Err(e) => format!("Falha ao executar ssh-copy-id: {e}"),
+                        Ok(true) => t!("ext.copyid_ok", alias = alias).into(),
+                        Ok(false) => t!("ext.copyid_failed", alias = alias).into(),
+                        Err(e) => t!("ext.copyid_error", err = e).into(),
                     }
                 }
             };
@@ -146,10 +154,7 @@ fn copy_id(alias: &str, identity: &str, password: &str) -> std::io::Result<bool>
 
     println!("→ ssh-copy-id {alias}\n");
     let ok = cmd.status()?.success();
-    println!(
-        "\n{} — Enter para voltar ao sshdeck",
-        if ok { "Pronto" } else { "Falhou" }
-    );
+    println!("\n{}", if ok { t!("ext.done") } else { t!("ext.failed") });
     let _ = std::io::stdin().lock().read_line(&mut String::new());
     Ok(ok)
 }

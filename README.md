@@ -81,6 +81,13 @@ alias existir nos dois arquivos, vale o do sshdeck.
   - Várias sessões ao mesmo tempo: `Alt+←/→` troca entre elas e `x` fecha a do host selecionado.
   - `Ctrl+]` volta para a lista e a sessão continua rodando.
   - Histórico de 5000 linhas por sessão (`Shift+PgUp/PgDn`).
+- **Informações do servidor** (`U`): o sshdeck abre uma segunda conexão rápida em segundo plano
+  e lê `/etc/os-release`, `uname`, `nproc` e `/proc/meminfo` (sistema, hostname, kernel, CPU e
+  memória). O resultado fica no cofre e aparece na caixa ao lado da lista, com a data da coleta;
+  enquanto não houver, os campos mostram o atalho `Shift+U` em cinza. Só coleta quando você
+  aperta `U`, nunca sozinho. A exceção é a 1ª conexão (`Enter`) num host SSH: um popup pergunta
+  se pode coletar, e a resposta vale para sempre naquele host. O servidor precisa ter sido
+  conectado ao menos uma vez antes, para a chave dele já ser conhecida.
 - **Tela cheia** (`s`): roda o ssh normal no terminal e volta para o sshdeck quando você sai.
 - **ssh-copy-id** (`K`): instala sua chave no servidor e preenche a senha salva automaticamente.
   Sem IdentityFile, quem escolhe a chave é o `ssh-copy-id`: as do ssh-agent, se houver; senão o
@@ -142,6 +149,7 @@ alias existir nos dois arquivos, vale o do sshdeck.
 | `a` / `e` / `d` | adicionar / editar / apagar |
 | `/` | filtrar |
 | `i` | importar hosts do `~/.ssh/config` |
+| `U` | coleta/atualiza as informações do servidor (sistema, kernel, CPU, memória) |
 | `P` | trocar a senha mestra |
 | `L` | escolher o idioma (pt, en, es) |
 | `?` | ajuda |
@@ -163,5 +171,7 @@ a senha, `Ctrl+U` limpa o campo.
 - No modo OSC 52, o sshdeck não consegue limpar o clipboard depois dos 45s.
 - No túnel do RDP, a senha do host SSH também vai por variável de ambiente para o `ssh` em
   segundo plano, durante a conexão do túnel.
+- Na coleta de informações do servidor, a senha do host vai por variável de ambiente para o
+  `ssh` em segundo plano, durante os poucos segundos da conexão (como no `K`).
 - Não há bloqueio automático por inatividade: o cofre fica aberto enquanto o programa estiver
   aberto.

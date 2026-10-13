@@ -4,6 +4,7 @@ use crate::{
     rdp::{self, RdpSession},
     session::Session,
     sshconfig,
+    sysinfo::{self, SysInfo},
     vault::{self, Host, Kind, Store, Vault},
 };
 use anyhow::{Result, bail};
@@ -16,7 +17,7 @@ use rust_i18n::t;
 use std::{
     borrow::Cow,
     path::PathBuf,
-    sync::{Arc, atomic::AtomicBool},
+    sync::{Arc, Mutex, atomic::AtomicBool},
     time::{Duration, Instant},
 };
 use zeroize::Zeroizing;
@@ -27,6 +28,9 @@ pub enum PwPurpose {
     Create,
     Rekey,
 }
+
+/// Onde a thread de coleta deixa o resultado.
+type SysinfoSlot = Arc<Mutex<Option<Result<SysInfo, String>>>>;
 
 pub enum Mode {
     Password {
@@ -40,6 +44,8 @@ pub enum Mode {
     Form(Box<Form>),
     ConfirmDelete(usize),
     ConfirmQuit,
+    /// popup da primeira conexão: coletar as informações do servidor?
+    ConfirmSysinfo(String),
     Help,
     /// Popup de idioma; o índice é a linha selecionada em `lang::LANGS`.
     Lang(usize),
@@ -264,6 +270,10 @@ pub struct App {
     pub sessions: Vec<Session>,
     /// janelas do FreeRDP abertas pelo sshdeck
     pub rdp_sessions: Vec<RdpSession>,
+    /// coletas de informações esperando a sessão completar `sysinfo::DELAY`
+    sysinfo_pending: Vec<String>,
+    /// coletas rodando numa thread
+    sysinfo_running: Vec<(String, SysinfoSlot)>,
     pub active: usize,
     /// teclas vão para o terminal da sessão ativa
     pub term_focus: bool,
@@ -301,6 +311,8 @@ impl App {
             pending: None,
             sessions: Vec::new(),
             rdp_sessions: Vec::new(),
+            sysinfo_pending: Vec::new(),
+            sysinfo_running: Vec::new(),
             active: 0,
             term_focus: false,
             term_size: (24, 80),
@@ -313,7 +325,110 @@ impl App {
         self.status = Some((msg.into(), Instant::now()));
     }
 
+    /// Depois de abrir uma sessão SSH: na 1ª vez pergunta se pode coletar as informações.
+    /// Depois disso, só coleta de novo quando o usuário pede (tecla `U`).
+    fn after_connect(&mut self, idx: usize) {
+        let h = &self.store.hosts[idx];
+        if h.kind == Kind::Ssh && h.sysinfo_allowed.is_none() {
+            self.mode = Mode::ConfirmSysinfo(h.alias.clone());
+        }
+    }
+
+    /// Tecla `U`: coleta agora, sem esperar sessão (a chave do servidor precisa já ser conhecida).
+    fn collect_sysinfo(&mut self, idx: usize) {
+        if self.store.hosts[idx].kind != Kind::Ssh {
+            return self.set_status(t!("st.sysinfo_ssh_only"));
+        }
+        let alias = self.store.hosts[idx].alias.clone();
+        if self.sysinfo_busy(&alias) {
+            return;
+        }
+        self.store.hosts[idx].sysinfo_allowed = Some(true);
+        self.start_sysinfo(alias.clone());
+        self.set_status(t!("st.sysinfo_started", alias = alias));
+    }
+
+    fn start_sysinfo(&mut self, alias: String) {
+        let password = self
+            .host_by_alias(&alias)
+            .map(|h| h.password.clone())
+            .unwrap_or_default();
+        let slot = Arc::new(Mutex::new(None));
+        let (out, a) = (slot.clone(), alias.clone());
+        std::thread::spawn(move || {
+            let r = sysinfo::collect(&a, &password).map_err(|e| format!("{e:#}"));
+            *out.lock().unwrap() = Some(r);
+        });
+        self.sysinfo_running.push((alias, slot));
+    }
+
+    fn key_confirm_sysinfo(&mut self, key: KeyEvent) {
+        let Mode::ConfirmSysinfo(alias) = std::mem::replace(&mut self.mode, Mode::List) else {
+            return;
+        };
+        let yes = matches!(key.code, KeyCode::Char('s') | KeyCode::Char('y'));
+        if let Some(h) = self.store.hosts.iter_mut().find(|h| h.alias == alias) {
+            h.sysinfo_allowed = Some(yes);
+        }
+        if yes {
+            self.sysinfo_pending.push(alias);
+        }
+        if let Err(e) = self.persist() {
+            self.set_status(t!("st.save_error", err = format!("{e:#}")));
+        }
+    }
+
+    /// Coleta em andamento (esperando ou rodando) para o host.
+    pub fn sysinfo_busy(&self, alias: &str) -> bool {
+        self.sysinfo_pending.iter().any(|a| a == alias)
+            || self.sysinfo_running.iter().any(|(a, _)| a == alias)
+    }
+
+    fn tick_sysinfo(&mut self) {
+        // sessão fechada antes da hora: tenta de novo na próxima conexão
+        let sessions = &self.sessions;
+        self.sysinfo_pending
+            .retain(|a| sessions.iter().any(|s| &s.alias == a && !s.is_exited()));
+        let ready: Vec<String> = self
+            .sysinfo_pending
+            .iter()
+            .filter(|a| {
+                sessions
+                    .iter()
+                    .any(|s| &s.alias == *a && s.started.elapsed() >= sysinfo::DELAY)
+            })
+            .cloned()
+            .collect();
+        for alias in ready {
+            self.sysinfo_pending.retain(|a| *a != alias);
+            self.start_sysinfo(alias);
+        }
+
+        let mut i = 0;
+        while i < self.sysinfo_running.len() {
+            let Some(result) = self.sysinfo_running[i].1.lock().unwrap().take() else {
+                i += 1;
+                continue;
+            };
+            let (alias, _) = self.sysinfo_running.remove(i);
+            match result {
+                Ok(info) => {
+                    if let Some(h) = self.store.hosts.iter_mut().find(|h| h.alias == alias) {
+                        h.sysinfo = Some(info);
+                    }
+                    self.persist_or_report(&t!("st.sysinfo_ok", alias = alias));
+                }
+                // servidor nunca conectado: a coleta não pode aceitar a chave sozinha
+                Err(e) if e.contains("Host key verification failed") => {
+                    self.set_status(t!("st.sysinfo_unknown_key", alias = alias))
+                }
+                Err(e) => self.set_status(t!("st.sysinfo_failed", alias = alias, err = e)),
+            }
+        }
+    }
+
     pub fn tick(&mut self) {
+        self.tick_sysinfo();
         if let Some((_, t)) = &self.status
             && t.elapsed() > Duration::from_secs(6)
         {
@@ -438,6 +553,7 @@ impl App {
                     self.sessions.push(s);
                     self.active = self.sessions.len() - 1;
                     self.mark_used(idx);
+                    self.after_connect(idx);
                 }
                 Err(e) => return self.set_status(t!("st.connect_failed", err = format!("{e:#}"))),
             }
@@ -601,6 +717,7 @@ impl App {
             Mode::Filter => self.key_filter(key),
             Mode::Form(_) => self.key_form(key),
             Mode::ConfirmDelete(_) => self.key_confirm(key),
+            Mode::ConfirmSysinfo(_) => self.key_confirm_sysinfo(key),
             Mode::ConfirmQuit => {
                 if matches!(key.code, KeyCode::Char('s') | KeyCode::Char('y')) {
                     self.quit = true;
@@ -836,6 +953,11 @@ impl App {
                 }
             }
             KeyCode::Char('i') => self.import(),
+            KeyCode::Char('U') => {
+                if let Some(i) = self.selected_host() {
+                    self.collect_sysinfo(i);
+                }
+            }
             KeyCode::Char('L') => {
                 let current = lang::current();
                 let i = lang::LANGS.iter().position(|l| *l == current).unwrap_or(0);
@@ -965,11 +1087,14 @@ impl App {
         let alias = host.alias.clone();
         match editing {
             Some(i) => {
-                let old = &self.store.hosts[i];
+                // o formulário só tem os campos editáveis: o resto vem do host antigo
+                let old = std::mem::take(&mut self.store.hosts[i]);
                 self.store.hosts[i] = Host {
                     last_used: old.last_used,
                     created: old.created,
                     updated: Some(vault::now()),
+                    sysinfo_allowed: old.sysinfo_allowed,
+                    sysinfo: old.sysinfo,
                     ..host
                 };
             }

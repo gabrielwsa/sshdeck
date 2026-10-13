@@ -177,6 +177,26 @@ st.imported:
   pt: "%{n} host(s) importado(s) — use 'e' para adicionar as senhas"
   en: "%{n} host(s) imported — use 'e' to add the passwords"
   es: "%{n} host(s) importado(s) — use 'e' para agregar las contraseñas"
+st.sysinfo_ok:
+  pt: "Informações de %{alias} coletadas"
+  en: "Information of %{alias} collected"
+  es: "Información de %{alias} recopilada"
+st.sysinfo_failed:
+  pt: "Não foi possível coletar as informações de %{alias}: %{err}"
+  en: "Could not collect the information of %{alias}: %{err}"
+  es: "No se pudo recopilar la información de %{alias}: %{err}"
+st.sysinfo_started:
+  pt: "Coletando informações de %{alias}..."
+  en: "Collecting information of %{alias}..."
+  es: "Recopilando información de %{alias}..."
+st.sysinfo_unknown_key:
+  pt: "Conecte uma vez em %{alias} (Enter) para aceitar a chave do servidor, depois use U"
+  en: "Connect to %{alias} once (Enter) to accept the server key, then press U"
+  es: "Conéctese una vez a %{alias} (Enter) para aceptar la clave del servidor, luego use U"
+st.sysinfo_ssh_only:
+  pt: "A coleta de informações é só para hosts SSH"
+  en: "Information collection is only for SSH hosts"
+  es: "La recopilación de información es solo para hosts SSH"
 st.lang:
   pt: "Idioma: Português"
   en: "Language: English"
@@ -353,6 +373,14 @@ ui.lang_title:
   pt: "Idioma"
   en: "Language"
   es: "Idioma"
+ui.sysinfo_title:
+  pt: "Informações do servidor"
+  en: "Server information"
+  es: "Información del servidor"
+ui.sysinfo_q:
+  pt: "Coletar sistema, kernel, CPU e memória de %{alias}?\n\nO sshdeck abre uma segunda conexão rápida em segundo plano\n(uns 5 segundos depois de conectar) e lê /etc/os-release e uname.\nFica salvo no cofre. Para atualizar depois, use a tecla U."
+  en: "Collect system, kernel, CPU and memory of %{alias}?\n\nsshdeck opens a quick second connection in the background\n(about 5 seconds after connecting) and reads /etc/os-release and uname.\nIt is saved in the vault. To refresh it later, press U."
+  es: "¿Recopilar sistema, kernel, CPU y memoria de %{alias}?\n\nsshdeck abre una segunda conexión rápida en segundo plano\n(unos 5 segundos después de conectar) y lee /etc/os-release y uname.\nSe guarda en la bóveda. Para actualizarla después, use la tecla U."
 ui.delete_title:
   pt: "Apagar"
   en: "Delete"
@@ -481,6 +509,30 @@ info.connecting:
   pt: "conectando..."
   en: "connecting..."
   es: "conectando..."
+info.system:
+  pt: "sistema"
+  en: "system"
+  es: "sistema"
+info.hostname:
+  pt: "hostname"
+  en: "hostname"
+  es: "hostname"
+info.kernel:
+  pt: "kernel"
+  en: "kernel"
+  es: "kernel"
+info.hardware:
+  pt: "hardware"
+  en: "hardware"
+  es: "hardware"
+info.collected:
+  pt: "coletado"
+  en: "collected"
+  es: "recopilado"
+info.collecting:
+  pt: "coletando..."
+  en: "collecting..."
+  es: "recopilando..."
 info.not_saved:
   pt: "não salva"
   en: "not saved"
@@ -643,6 +695,10 @@ h.fullscreen:
   pt: "tela cheia"
   en: "fullscreen"
   es: "pantalla completa"
+h.sysinfo:
+  pt: "info do servidor"
+  en: "server info"
+  es: "info del servidor"
 h.import:
   pt: "importar"
   en: "import"
@@ -697,6 +753,10 @@ help.filter:
   pt: "filtra por alias, user ou host"
   en: "filter by alias, user or host"
   es: "filtra por alias, usuario o host"
+help.u:
+  pt: "coleta/atualiza sistema, kernel, CPU e memória do host"
+  en: "collect/refresh system, kernel, CPU and memory of the host"
+  es: "recopila/actualiza sistema, kernel, CPU y memoria del host"
 help.i:
   pt: "importa hosts do ~/.ssh/config"
   en: "import hosts from ~/.ssh/config"

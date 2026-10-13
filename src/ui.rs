@@ -101,6 +101,12 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             &t!("ui.quit_title"),
             &t!("ui.quit_q", n = app.open_count()),
         ),
+        Mode::ConfirmSysinfo(alias) => draw_question(
+            f,
+            &t!("ui.sysinfo_title"),
+            &t!("ui.sysinfo_q", alias = alias),
+            ACCENT,
+        ),
         Mode::Help => draw_help(f),
         Mode::Lang(i) => draw_lang(f, *i),
         _ => {}
@@ -213,7 +219,13 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
         };
         if let Some(i) = app.selected_host() {
             let h = &app.store.hosts[i];
-            draw_host_side(f, h, app.connection(&h.alias), side);
+            draw_host_side(
+                f,
+                h,
+                app.connection(&h.alias),
+                app.sysinfo_busy(&h.alias),
+                side,
+            );
         }
     } else {
         f.render_stateful_widget(table, inner, &mut app.table);
@@ -225,13 +237,66 @@ const SIDE_MIN: u16 = 28;
 
 /// Notas, chave e última conexão do host selecionado, numa caixa ao lado da lista
 /// (com a altura do conteúdo).
-fn draw_host_side(f: &mut Frame, h: &Host, connection: Option<bool>, area: Rect) {
+fn draw_host_side(f: &mut Frame, h: &Host, connection: Option<bool>, collecting: bool, area: Rect) {
     let when = |t: Option<u64>, missing: Cow<'static, str>| match t {
         Some(t) => Span::raw(ago(t)),
         None => Span::raw(missing).dark_gray(),
     };
+    let mut rows: Vec<(Cow<str>, Span)> = Vec::new();
+    // dados coletados do servidor (tecla U, ou o popup da 1ª conexão); sempre visíveis nos
+    // hosts SSH, em cinza enquanto não houver, para lembrar que dá para coletar
+    if h.kind == Kind::Ssh {
+        let gray = |text: Cow<'static, str>| Span::raw(text).dark_gray();
+        let missing = || {
+            if collecting {
+                Span::styled(t!("info.collecting"), Style::new().fg(Color::Yellow))
+            } else {
+                gray("Shift+U".into())
+            }
+        };
+        let i = h.sysinfo.as_ref();
+        let value = |v: Option<String>| match v.filter(|v| !v.is_empty()) {
+            Some(v) => Span::raw(v),
+            None if i.is_some() => gray("-".into()),
+            None => missing(),
+        };
+        rows.push((t!("info.system"), value(i.map(|i| i.os.clone()))));
+        rows.push((t!("info.hostname"), value(i.map(|i| i.hostname.clone()))));
+        rows.push((
+            t!("info.kernel"),
+            value(i.map(|i| format!("{} ({})", i.kernel, i.arch))),
+        ));
+        rows.push((
+            t!("info.hardware"),
+            value(i.map(|i| {
+                let mut hw = Vec::new();
+                if let Some(n) = i.cpus {
+                    hw.push(format!("{n} CPU"));
+                }
+                if let Some(kb) = i.mem_kb {
+                    hw.push(format!("{:.1} GB", kb as f64 / 1024.0 / 1024.0));
+                }
+                hw.join(" · ")
+            })),
+        ));
+        rows.push((
+            t!("info.collected"),
+            match i {
+                Some(i) if collecting => Span::styled(
+                    format!(
+                        "{} ({})",
+                        local_datetime(i.collected),
+                        t!("info.collecting")
+                    ),
+                    Style::new().fg(Color::Yellow),
+                ),
+                Some(i) => Span::raw(local_datetime(i.collected)),
+                None => missing(),
+            },
+        ));
+    }
     // SSH e RDP com o mesmo número de linhas, para a caixa não mudar de tamanho
-    let mut rows: Vec<(Cow<str>, Span)> = vec![match h.kind {
+    rows.push(match h.kind {
         Kind::Ssh => (
             t!("info.key"),
             if h.identity_file.is_empty() {
@@ -248,7 +313,7 @@ fn draw_host_side(f: &mut Frame, h: &Host, connection: Option<bool>, area: Rect)
                 Span::raw(h.resolution.clone())
             },
         ),
-    }];
+    });
     rows.push((t!("info.last"), when(h.last_used, t!("info.never"))));
     let date = |t: Option<u64>, missing: Cow<'static, str>| match t {
         Some(t) => Span::raw(local_datetime(t)),
@@ -592,7 +657,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
             k("Ctrl+U", t!("h.clear_field")),
             k("Esc", t!("h.cancel")),
         ],
-        Mode::ConfirmDelete(_) | Mode::ConfirmQuit => confirm_hints(),
+        Mode::ConfirmDelete(_) | Mode::ConfirmQuit | Mode::ConfirmSysinfo(_) => confirm_hints(),
         Mode::Help => vec![k(t!("key.any"), t!("h.close"))],
         Mode::Lang(_) => vec![
             k("↑/↓", t!("h.choose")),
@@ -629,6 +694,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
             k("c", t!("h.copy_pw")),
             k("a/e/d", t!("h.add_edit_del")),
             k("i", t!("h.import")),
+            k("U", t!("h.sysinfo")),
             k("/", t!("h.filter")),
             k("?", t!("h.help")),
             k("q", t!("h.quit")),
@@ -812,17 +878,30 @@ fn draw_form(f: &mut Frame, form: &Form) {
 }
 
 fn draw_confirm(f: &mut Frame, title: &str, question: &str) {
-    let area = centered(f.area(), (question.chars().count() as u16 + 6).max(40), 5);
+    draw_question(f, title, question, Color::Red);
+}
+
+/// Popup com uma pergunta (pode ter várias linhas) e os atalhos de sim/não.
+fn draw_question(f: &mut Frame, title: &str, question: &str, color: Color) {
+    let widest = question
+        .lines()
+        .map(|l| l.chars().count())
+        .max()
+        .unwrap_or(0);
+    let lines = question.lines().count() as u16;
+    let area = centered(f.area(), (widest as u16 + 6).max(40), lines + 4);
     f.render_widget(Clear, area);
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
-        .border_style(Style::new().fg(Color::Red))
+        .border_style(Style::new().fg(color))
+        .padding(ratatui::widgets::Padding::horizontal(1))
         .title(format!(" {title} "));
-    let text = vec![
-        Line::from(question.to_string()),
-        Line::from(""),
-        hints(&confirm_hints()),
-    ];
+    let mut text: Vec<Line> = question
+        .lines()
+        .map(|l| Line::from(l.to_string()))
+        .collect();
+    text.push(Line::from(""));
+    text.push(hints(&confirm_hints()));
     f.render_widget(Paragraph::new(text).block(block), area);
 }
 
@@ -864,6 +943,7 @@ fn draw_help(f: &mut Frame) {
         k("d / Del", t!("help.d")),
         k("/", t!("help.filter")),
         k("i", t!("help.i")),
+        k("U", t!("help.u")),
         k("P", t!("help.rekey")),
         k("L", t!("help.lang")),
         k("j/k ↑/↓ g/G", t!("help.nav")),

@@ -366,6 +366,11 @@ impl App {
     }
 
     /// Total de conexões abertas (ssh embutido + janelas RDP).
+    /// Algum RDP esperando o túnel subir: o loop principal checa mais vezes.
+    pub fn rdp_connecting(&self) -> bool {
+        self.rdp_sessions.iter().any(|s| s.connecting())
+    }
+
     pub fn open_count(&self) -> usize {
         self.sessions.len() + self.rdp_sessions.len()
     }

@@ -36,6 +36,7 @@ pub struct RdpSession {
     tunnel: Option<Child>,
     client: Option<Child>,
     log: PathBuf,
+    started: Instant,
 }
 
 impl RdpSession {
@@ -59,6 +60,7 @@ impl RdpSession {
             tunnel: None,
             client: None,
             log,
+            started: Instant::now(),
         };
         match gateway {
             Some(gw) => {
@@ -81,6 +83,10 @@ impl RdpSession {
         self.tunnel.is_some()
     }
 
+    pub fn connecting(&self) -> bool {
+        matches!(self.state, State::Tunnel { .. })
+    }
+
     /// Avança o estado. Devolve `Some` quando a sessão terminou: `Ok` se fechou normalmente.
     pub fn poll(&mut self) -> Option<Result<(), String>> {
         if let Some(t) = &mut self.tunnel
@@ -92,6 +98,7 @@ impl RdpSession {
             State::Tunnel { port, deadline } => {
                 let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
                 if TcpStream::connect_timeout(&addr, Duration::from_millis(30)).is_ok() {
+                    self.mark("tunnel ready");
                     match self.spawn_client("127.0.0.1", port) {
                         Ok(c) => {
                             self.client = Some(c);
@@ -106,6 +113,7 @@ impl RdpSession {
             }
             State::Running => {
                 let status = self.client.as_mut()?.try_wait().ok()??;
+                self.mark(&format!("FreeRDP exited ({status})"));
                 // o FreeRDP usa códigos diferentes de zero até para "desconectado pelo usuário";
                 // só é erro de verdade se ele registrou um ERROR no log
                 let err = self.log_error();
@@ -118,6 +126,7 @@ impl RdpSession {
     }
 
     fn spawn_tunnel(&self, gw: &Host, port: u16) -> Result<Child> {
+        self.mark(&format!("starting tunnel via {}", gw.alias));
         let mut cmd = Command::new("ssh");
         cmd.arg("-N")
             .arg("-L")
@@ -130,6 +139,10 @@ impl RdpSession {
                 "ExitOnForwardFailure=yes",
                 "-o",
                 "ServerAliveInterval=30",
+                // conexão própria: com ControlMaster no ~/.ssh/config, o forward iria para o
+                // master e este processo sairia na hora (parecendo que o túnel caiu)
+                "-o",
+                "ControlPath=none",
             ])
             .arg(&gw.alias)
             .stdin(Stdio::null())
@@ -153,6 +166,9 @@ impl RdpSession {
             // aceita o certificado na 1ª conexão e recusa se ele mudar depois (como o ssh)
             .arg("/cert:tofu")
             .arg("+clipboard")
+            // sem papel de parede a primeira tela chega antes. Não usar /network: sem ele o
+            // FreeRDP fica no autodetect, que é o que liga os codecs GFX/H.264
+            .arg("-wallpaper")
             .arg(format!("/title:sshdeck · {}", h.alias))
             .arg("/log-level:ERROR");
         if !h.domain.is_empty() {
@@ -169,6 +185,7 @@ impl RdpSession {
                 expand_tilde(&h.share).display()
             ));
         }
+        self.mark("starting FreeRDP");
         let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(self.log_file()?)
@@ -181,6 +198,14 @@ impl RdpSession {
             let _ = stdin.write_all(line.as_bytes());
         }
         Ok(child)
+    }
+
+    /// Linha de tempo no log, para ver onde a abertura demora.
+    fn mark(&self, what: &str) {
+        if let Ok(mut f) = self.log_file() {
+            let secs = self.started.elapsed().as_secs_f32();
+            let _ = writeln!(f, "[sshdeck +{secs:.2}s] {what}");
+        }
     }
 
     fn log_file(&self) -> Result<File> {

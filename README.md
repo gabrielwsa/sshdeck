@@ -84,7 +84,7 @@ alias existir nos dois arquivos, vale o do sshdeck.
 - **Informações do servidor** (`U`): o sshdeck abre uma segunda conexão rápida em segundo plano
   e lê `/etc/os-release`, `uname`, `nproc` e `/proc/meminfo` (sistema, hostname, kernel, CPU e
   memória). O resultado fica no cofre e aparece na caixa ao lado da lista, com a data da coleta;
-  enquanto não houver, os campos aparecem em cinza ("não coletado (U)"). Só coleta quando você
+  enquanto não houver, os campos mostram o atalho `Shift+U` em cinza. Só coleta quando você
   aperta `U`, nunca sozinho. A exceção é a 1ª conexão (`Enter`) num host SSH: um popup pergunta
   se pode coletar, e a resposta vale para sempre naquele host. O servidor precisa ter sido
   conectado ao menos uma vez antes, para a chave dele já ser conhecida.

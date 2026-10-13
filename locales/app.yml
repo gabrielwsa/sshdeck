@@ -525,10 +525,6 @@ info.hardware:
   pt: "hardware"
   en: "hardware"
   es: "hardware"
-info.not_collected:
-  pt: "não coletado (U)"
-  en: "not collected (U)"
-  es: "no recopilado (U)"
 info.collected:
   pt: "coletado"
   en: "collected"

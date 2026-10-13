@@ -251,7 +251,7 @@ fn draw_host_side(f: &mut Frame, h: &Host, connection: Option<bool>, collecting:
             if collecting {
                 Span::styled(t!("info.collecting"), Style::new().fg(Color::Yellow))
             } else {
-                gray(t!("info.not_collected"))
+                gray("Shift+U".into())
             }
         };
         let i = h.sysinfo.as_ref();

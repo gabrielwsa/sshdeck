@@ -117,6 +117,18 @@ st.rdp_failed:
   pt: "Falha no RDP: %{err}"
   en: "RDP failed: %{err}"
   es: "Fallo en RDP: %{err}"
+st.cert_changed:
+  pt: "RDP %{alias}: o certificado do servidor mudou. Se confiar nele, apague %{path}"
+  en: "RDP %{alias}: the server certificate changed. If you trust it, delete %{path}"
+  es: "RDP %{alias}: el certificado del servidor cambió. Si confía en él, borre %{path}"
+st.cert_kept:
+  pt: "RDP %{alias}: certificado novo recusado, conexão cancelada"
+  en: "RDP %{alias}: new certificate refused, connection cancelled"
+  es: "RDP %{alias}: certificado nuevo rechazado, conexión cancelada"
+st.cert_remove_failed:
+  pt: "Não deu para apagar o certificado antigo: %{err}"
+  en: "Could not delete the old certificate: %{err}"
+  es: "No se pudo borrar el certificado antiguo: %{err}"
 st.connect_failed:
   pt: "Falha ao conectar: %{err}"
   en: "Connection failed: %{err}"
@@ -381,6 +393,14 @@ ui.sysinfo_q:
   pt: "Coletar sistema, kernel, CPU e memória de %{alias}?\n\nO sshdeck abre uma segunda conexão rápida em segundo plano\n(uns 5 segundos depois de conectar) e lê /etc/os-release e uname.\nFica salvo no cofre. Para atualizar depois, use a tecla U."
   en: "Collect system, kernel, CPU and memory of %{alias}?\n\nsshdeck opens a quick second connection in the background\n(about 5 seconds after connecting) and reads /etc/os-release and uname.\nIt is saved in the vault. To refresh it later, press U."
   es: "¿Recopilar sistema, kernel, CPU y memoria de %{alias}?\n\nsshdeck abre una segunda conexión rápida en segundo plano\n(unos 5 segundos después de conectar) y lee /etc/os-release y uname.\nSe guarda en la bóveda. Para actualizarla después, use la tecla U."
+ui.cert_title:
+  pt: "Certificado do servidor mudou"
+  en: "Server certificate changed"
+  es: "El certificado del servidor cambió"
+ui.cert_q:
+  pt: "O certificado de %{alias} não é o mesmo da última conexão.\n\nEm geral é o Windows que renovou o dele (vale ~6 meses),\nmas também pode ser alguém no meio da conexão.\n\nNovo: %{thumb}\n\nConfiar no novo e conectar? (apaga %{path})"
+  en: "The certificate of %{alias} is not the same as last time.\n\nUsually Windows renewed it (it lasts ~6 months),\nbut it could also be someone in the middle of the connection.\n\nNew: %{thumb}\n\nTrust the new one and connect? (deletes %{path})"
+  es: "El certificado de %{alias} no es el mismo de la última conexión.\n\nEn general es Windows que lo renovó (dura ~6 meses),\npero también puede ser alguien en medio de la conexión.\n\nNuevo: %{thumb}\n\n¿Confiar en el nuevo y conectar? (borra %{path})"
 ui.delete_title:
   pt: "Apagar"
   en: "Delete"

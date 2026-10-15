@@ -106,7 +106,7 @@ alias existir nos dois arquivos, vale o do sshdeck.
   `1920x1080`; ou `90%`.
 - **Pasta compartilhada:** aparece no Windows como a unidade `sshdeck`.
 - **Clipboard** compartilhado entre Linux e Windows (`+clipboard`).
-- **Certificado:** aceito na 1ª conexão e recusado se mudar depois (`/cert:tofu`, igual ao ssh).
+- **Certificado:** aceito na 1ª conexão e recusado se mudar depois (`/cert:tofu`, igual ao ssh). Se mudar (o Windows renova o dele a cada ~6 meses), o sshdeck mostra a impressão digital do novo e pergunta se você confia nele; com `s`, apaga o antigo e reconecta.
 - **Túnel SSH via `<alias>`:** para Windows que só é acessível passando por um servidor Linux.
   O sshdeck abre `ssh -N -L` por esse host SSH (preenchendo a senha dele), espera o túnel subir e
   conecta o RDP através dele. A chave do host do túnel precisa já ser conhecida: conecte nele

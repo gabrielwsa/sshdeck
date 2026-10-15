@@ -46,6 +46,11 @@ pub enum Mode {
     ConfirmQuit,
     /// popup da primeira conexão: coletar as informações do servidor?
     ConfirmSysinfo(String),
+    /// o certificado do servidor RDP mudou: confiar no novo e reconectar?
+    ConfirmCert {
+        alias: String,
+        change: rdp::CertChange,
+    },
     Help,
     /// Popup de idioma; o índice é a linha selecionada em `lang::LANGS`.
     Lang(usize),
@@ -362,6 +367,25 @@ impl App {
         self.sysinfo_running.push((alias, slot));
     }
 
+    fn key_confirm_cert(&mut self, key: KeyEvent) {
+        let Mode::ConfirmCert { alias, change } = std::mem::replace(&mut self.mode, Mode::List)
+        else {
+            return;
+        };
+        if !matches!(key.code, KeyCode::Char('s') | KeyCode::Char('y')) {
+            return self.set_status(t!("st.cert_kept", alias = alias));
+        }
+        // sem o certificado antigo, o /cert:tofu aceita e guarda o novo
+        if let Err(e) = std::fs::remove_file(&change.path)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            return self.set_status(t!("st.cert_remove_failed", err = e));
+        }
+        if let Some(idx) = self.store.hosts.iter().position(|h| h.alias == alias) {
+            self.open_rdp(idx);
+        }
+    }
+
     fn key_confirm_sysinfo(&mut self, key: KeyEvent) {
         let Mode::ConfirmSysinfo(alias) = std::mem::replace(&mut self.mode, Mode::List) else {
             return;
@@ -443,8 +467,22 @@ impl App {
                 Some(result) => {
                     let s = self.rdp_sessions.remove(i);
                     match result {
-                        Ok(()) => self.set_status(t!("st.rdp_closed", alias = s.alias)),
-                        Err(e) => self.set_status(t!("st.rdp_error", alias = s.alias, err = e)),
+                        rdp::End::Closed => self.set_status(t!("st.rdp_closed", alias = s.alias)),
+                        rdp::End::Failed(e) => {
+                            self.set_status(t!("st.rdp_error", alias = s.alias, err = e))
+                        }
+                        // não interrompe um formulário ou outro popup: aí só avisa
+                        rdp::End::CertChanged(change) if matches!(self.mode, Mode::List) => {
+                            self.mode = Mode::ConfirmCert {
+                                alias: s.alias.clone(),
+                                change,
+                            }
+                        }
+                        rdp::End::CertChanged(change) => self.set_status(t!(
+                            "st.cert_changed",
+                            alias = s.alias,
+                            path = change.path.display()
+                        )),
                     }
                 }
             }
@@ -718,6 +756,7 @@ impl App {
             Mode::Form(_) => self.key_form(key),
             Mode::ConfirmDelete(_) => self.key_confirm(key),
             Mode::ConfirmSysinfo(_) => self.key_confirm_sysinfo(key),
+            Mode::ConfirmCert { .. } => self.key_confirm_cert(key),
             Mode::ConfirmQuit => {
                 if matches!(key.code, KeyCode::Char('s') | KeyCode::Char('y')) {
                     self.quit = true;

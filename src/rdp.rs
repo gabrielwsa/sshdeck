@@ -20,6 +20,20 @@ pub const DEFAULT_PORT: u16 = 3389;
 const CLIENTS: [&str; 4] = ["xfreerdp3", "sdl-freerdp3", "wlfreerdp3", "xfreerdp"];
 const TUNNEL_TIMEOUT: Duration = Duration::from_secs(20);
 
+/// Como a sessão terminou.
+pub enum End {
+    Closed,
+    Failed(String),
+    /// o certificado do servidor não é o aceito antes (/cert:tofu): o usuário decide se confia
+    CertChanged(CertChange),
+}
+
+pub struct CertChange {
+    /// onde o FreeRDP guarda o certificado antigo; apagar faz ele aceitar o novo
+    pub path: PathBuf,
+    pub thumbprint: String,
+}
+
 enum State {
     /// esperando o túnel ssh começar a escutar na porta local
     Tunnel {
@@ -87,12 +101,14 @@ impl RdpSession {
         matches!(self.state, State::Tunnel { .. })
     }
 
-    /// Avança o estado. Devolve `Some` quando a sessão terminou: `Ok` se fechou normalmente.
-    pub fn poll(&mut self) -> Option<Result<(), String>> {
+    /// Avança o estado. Devolve `Some` quando a sessão terminou.
+    pub fn poll(&mut self) -> Option<End> {
         if let Some(t) = &mut self.tunnel
             && let Ok(Some(_)) = t.try_wait()
         {
-            return Some(Err(t!("rdp.tunnel_down", err = self.last_error()).into()));
+            return Some(End::Failed(
+                t!("rdp.tunnel_down", err = self.last_error()).into(),
+            ));
         }
         match self.state {
             State::Tunnel { port, deadline } => {
@@ -104,22 +120,28 @@ impl RdpSession {
                             self.client = Some(c);
                             self.state = State::Running;
                         }
-                        Err(e) => return Some(Err(format!("{e:#}"))),
+                        Err(e) => return Some(End::Failed(format!("{e:#}"))),
                     }
                 } else if Instant::now() > deadline {
-                    return Some(Err(t!("rdp.tunnel_timeout").into()));
+                    return Some(End::Failed(t!("rdp.tunnel_timeout").into()));
                 }
                 None
             }
             State::Running => {
                 let status = self.client.as_mut()?.try_wait().ok()??;
                 self.mark(&format!("FreeRDP exited ({status})"));
+                if status.success() {
+                    return Some(End::Closed);
+                }
+                let text = fs::read_to_string(&self.log).unwrap_or_default();
+                if let Some(c) = cert_changed(&text) {
+                    return Some(End::CertChanged(c));
+                }
                 // o FreeRDP usa códigos diferentes de zero até para "desconectado pelo usuário";
                 // só é erro de verdade se ele registrou um ERROR no log
-                let err = self.log_error();
-                Some(match (status.success(), err) {
-                    (false, Some(e)) => Err(e),
-                    _ => Ok(()),
+                Some(match error_from_log(&text) {
+                    Some(e) => End::Failed(e),
+                    None => End::Closed,
                 })
             }
         }
@@ -212,14 +234,8 @@ impl RdpSession {
         Ok(fs::OpenOptions::new().append(true).open(&self.log)?)
     }
 
-    /// Última linha de ERROR do log, sem o prefixo de data/módulo.
     fn log_error(&self) -> Option<String> {
-        let text = fs::read_to_string(&self.log).ok()?;
-        let line = text.lines().rev().find(|l| l.contains("ERROR"))?;
-        Some(match line.rsplit_once("] - ") {
-            Some((_, msg)) => msg.trim().to_string(),
-            None => line.trim().to_string(),
-        })
+        error_from_log(&fs::read_to_string(&self.log).ok()?)
     }
 
     fn last_error(&self) -> String {
@@ -289,6 +305,45 @@ fn free_port() -> Result<u16> {
         .port())
 }
 
+/// Certificado diferente do aceito antes: em geral o Windows renovou o dele.
+fn cert_changed(text: &str) -> Option<CertChange> {
+    if !text.contains("certificate not trusted") {
+        return None;
+    }
+    let path = text.lines().find_map(|l| {
+        let rest = l.split_once("Add correct host key in ")?.1;
+        Some(rest.split_once(" to get rid")?.0.trim())
+    })?;
+    // só apaga o que é mesmo do FreeRDP
+    if !path.ends_with(".pem") || !path.contains("/freerdp/") {
+        return None;
+    }
+    // o primeiro Thumbprint impresso é o do certificado novo
+    let thumbprint = text
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("Thumbprint:"))
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    Some(CertChange {
+        path: path.into(),
+        thumbprint,
+    })
+}
+
+/// O motivo da falha no log do FreeRDP: a última linha de ERROR, sem o prefixo de data/módulo.
+fn error_from_log(text: &str) -> Option<String> {
+    let line = text
+        .lines()
+        .rev()
+        // o FreeRDP reclama que a senha não veio de um terminal (vem por pipe): não é a falha
+        .find(|l| l.contains("ERROR") && !l.contains("set_termianl_nonblock"))?;
+    Some(match line.rsplit_once("] - ") {
+        Some((_, msg)) => msg.trim().to_string(),
+        None => line.trim().to_string(),
+    })
+}
+
 fn log_path(alias: &str) -> Result<PathBuf> {
     let dir = dirs::cache_dir()
         .context(t!("rdp.no_cache"))?
@@ -300,7 +355,35 @@ fn log_path(alias: &str) -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::valid_resolution;
+    use super::{cert_changed, error_from_log, valid_resolution};
+
+    #[test]
+    fn log_error_skips_terminal_noise() {
+        let log = "[1] [ERROR][com.freerdp.core] - [x]: ERRCONNECT_CONNECT_FAILED\n\
+                   [2] [ERROR][com.freerdp.utils.passphrase] - [set_termianl_nonblock]: tcsetattr failed\n";
+        assert_eq!(
+            error_from_log(log).unwrap(),
+            "[x]: ERRCONNECT_CONNECT_FAILED"
+        );
+        assert!(error_from_log("[1] [ERROR][a] - [set_termianl_nonblock]: x\n").is_none());
+    }
+
+    #[test]
+    fn certificate_changed() {
+        let log = "[1] [ERROR][com.freerdp.crypto] - [tls_print_certificate_error]: Add correct host key \
+                   in /home/u/.config/freerdp/server/10.0.0.1_3389.pem to get rid of this message.\n\
+                   [2] [ERROR][com.freerdp.crypto] - [freerdp_tls_handshake]: certificate not trusted, aborting.\n";
+        let log = format!(
+            "{log}New Certificate details:\n       Thumbprint: 61:f0:aa\nOld Certificate details:\n       Thumbprint: 86:ab:bb\n"
+        );
+        let c = cert_changed(&log).unwrap();
+        assert_eq!(
+            c.path.to_str(),
+            Some("/home/u/.config/freerdp/server/10.0.0.1_3389.pem")
+        );
+        assert_eq!(c.thumbprint, "61:f0:aa");
+        assert!(cert_changed("[1] [ERROR][a] - x\n").is_none());
+    }
 
     #[test]
     fn resolution() {

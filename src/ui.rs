@@ -107,6 +107,17 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             &t!("ui.sysinfo_q", alias = alias),
             ACCENT,
         ),
+        Mode::ConfirmCert { alias, change } => draw_question(
+            f,
+            &t!("ui.cert_title"),
+            &t!(
+                "ui.cert_q",
+                alias = alias,
+                thumb = change.thumbprint,
+                path = change.path.display()
+            ),
+            Color::Yellow,
+        ),
         Mode::Help => draw_help(f),
         Mode::Lang(i) => draw_lang(f, *i),
         _ => {}
@@ -670,7 +681,10 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
             k("Ctrl+U", t!("h.clear_field")),
             k("Esc", t!("h.cancel")),
         ],
-        Mode::ConfirmDelete(_) | Mode::ConfirmQuit | Mode::ConfirmSysinfo(_) => confirm_hints(),
+        Mode::ConfirmDelete(_)
+        | Mode::ConfirmQuit
+        | Mode::ConfirmSysinfo(_)
+        | Mode::ConfirmCert { .. } => confirm_hints(),
         Mode::Help => vec![k(t!("key.any"), t!("h.close"))],
         Mode::Lang(_) => vec![
             k("↑/↓", t!("h.choose")),

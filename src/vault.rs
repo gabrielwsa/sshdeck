@@ -63,7 +63,6 @@ pub struct Host {
     pub sysinfo: Option<crate::sysinfo::SysInfo>,
 }
 
-/// Segundos desde 1970, para os campos de data dos hosts.
 pub fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -73,7 +72,6 @@ pub fn now() -> u64 {
 #[derive(Serialize, Deserialize, Default)]
 pub struct Store {
     pub hosts: Vec<Host>,
-    /// idioma escolhido com a tecla L
     #[serde(default)]
     pub lang: Option<String>,
 }
@@ -124,7 +122,6 @@ impl Vault {
         Ok((Self { path, salt, key }, store))
     }
 
-    /// Troca a senha mestra (novo salt) e regrava o cofre.
     pub fn rekey(&mut self, password: &str, store: &Store) -> Result<()> {
         rand::thread_rng().fill_bytes(&mut self.salt);
         self.key = derive_key(password, &self.salt)?;

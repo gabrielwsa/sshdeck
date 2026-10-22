@@ -243,7 +243,6 @@ fn draw_list(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-/// Largura mínima para mostrar as informações ao lado da lista.
 const SIDE_MIN: u16 = 28;
 
 /// Notas, chave e última conexão do host selecionado, numa caixa ao lado da lista
@@ -653,7 +652,6 @@ fn k(key: impl Into<Cow<'static, str>>, desc: impl Into<Cow<'static, str>>) -> H
     (key.into(), desc.into())
 }
 
-/// Rodapé com os atalhos do contexto atual — sempre visível.
 fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     let keys: Vec<Hint> = match &app.mode {
         Mode::Password { purpose, .. } => vec![
@@ -921,7 +919,6 @@ fn draw_confirm(f: &mut Frame, title: &str, question: &str) {
     draw_question(f, title, question, Color::Red);
 }
 
-/// Popup com uma pergunta (pode ter várias linhas) e os atalhos de sim/não.
 fn draw_question(f: &mut Frame, title: &str, question: &str, color: Color) {
     let widest = question
         .lines()

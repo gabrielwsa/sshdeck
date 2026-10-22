@@ -29,7 +29,6 @@ pub enum PwPurpose {
     Rekey,
 }
 
-/// Onde a thread de coleta deixa o resultado.
 type SysinfoSlot = Arc<Mutex<Option<Result<SysInfo, String>>>>;
 
 pub enum Mode {
@@ -271,13 +270,10 @@ pub struct App {
     pub quit: bool,
     /// o loop principal suspende a TUI e roda este comando
     pub pending: Option<External>,
-    /// sessões ssh embutidas (workspace)
     pub sessions: Vec<Session>,
-    /// janelas do FreeRDP abertas pelo sshdeck
     pub rdp_sessions: Vec<RdpSession>,
     /// coletas de informações esperando a sessão completar `sysinfo::DELAY`
     sysinfo_pending: Vec<String>,
-    /// coletas rodando numa thread
     sysinfo_running: Vec<(String, SysinfoSlot)>,
     pub active: usize,
     /// teclas vão para o terminal da sessão ativa
@@ -286,7 +282,6 @@ pub struct App {
     pub term_size: (u16, u16),
     /// Onde o painel do terminal foi desenhado, para saber se a roda do mouse está sobre ele.
     pub term_area: Rect,
-    /// marcado pelas sessões quando chega saída nova
     pub output: Arc<AtomicBool>,
 }
 
@@ -402,7 +397,6 @@ impl App {
         }
     }
 
-    /// Coleta em andamento (esperando ou rodando) para o host.
     pub fn sysinfo_busy(&self, alias: &str) -> bool {
         self.sysinfo_pending.iter().any(|a| a == alias)
             || self.sysinfo_running.iter().any(|(a, _)| a == alias)
@@ -488,7 +482,6 @@ impl App {
             }
         }
 
-        // remove sessões cujo ssh terminou
         if self.sessions.iter().any(|s| s.is_exited()) {
             let active_alias = self.active_session().map(|s| s.alias.clone());
             let mut closed = Vec::new();
@@ -534,7 +527,6 @@ impl App {
             || self.rdp_sessions.iter().any(|s| s.alias == alias)
     }
 
-    /// Total de conexões abertas (ssh embutido + janelas RDP).
     /// Algum RDP esperando o túnel subir: o loop principal checa mais vezes.
     pub fn rdp_connecting(&self) -> bool {
         self.rdp_sessions.iter().any(|s| s.connecting())
@@ -611,7 +603,6 @@ impl App {
         }
     }
 
-    /// Seleciona na lista o host da sessão ativa.
     fn select_active_host(&mut self) {
         let Some(alias) = self.active_session().map(|s| s.alias.clone()) else {
             return;
@@ -646,7 +637,6 @@ impl App {
         }
     }
 
-    /// Índices de `store.hosts` que passam pelo filtro.
     pub fn visible(&self) -> Vec<usize> {
         let q = self.filter.to_lowercase();
         self.store
@@ -715,7 +705,6 @@ impl App {
         true
     }
 
-    // ---------- teclado ----------
 
     /// Roda do mouse: sobre o terminal rola a sessão; no resto da tela vale como ↑/↓.
     pub fn on_mouse(&mut self, m: MouseEvent) {
@@ -1144,7 +1133,6 @@ impl App {
         }
         self.mode = Mode::List;
         self.persist_or_report(&t!("st.saved", alias = alias));
-        // reposiciona a seleção no host salvo
         self.filter.clear();
         if let Some(pos) = self.store.hosts.iter().position(|h| h.alias == alias) {
             self.table.select(Some(pos));

@@ -20,7 +20,6 @@ pub const DEFAULT_PORT: u16 = 3389;
 const CLIENTS: [&str; 4] = ["xfreerdp3", "sdl-freerdp3", "wlfreerdp3", "xfreerdp"];
 const TUNNEL_TIMEOUT: Duration = Duration::from_secs(20);
 
-/// Como a sessão terminou.
 pub enum End {
     Closed,
     Failed(String),
@@ -101,7 +100,6 @@ impl RdpSession {
         matches!(self.state, State::Tunnel { .. })
     }
 
-    /// Avança o estado. Devolve `Some` quando a sessão terminou.
     pub fn poll(&mut self) -> Option<End> {
         if let Some(t) = &mut self.tunnel
             && let Ok(Some(_)) = t.try_wait()
@@ -222,7 +220,6 @@ impl RdpSession {
         Ok(child)
     }
 
-    /// Linha de tempo no log, para ver onde a abertura demora.
     fn mark(&self, what: &str) {
         if let Ok(mut f) = self.log_file() {
             let secs = self.started.elapsed().as_secs_f32();

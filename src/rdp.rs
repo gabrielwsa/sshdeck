@@ -2,7 +2,7 @@
 //! trabalho). A senha vai pelo stdin (`/from-stdin`), nunca na linha de comando.
 //! Com `gateway`, primeiro sobe um túnel `ssh -L` até o servidor e o RDP passa por ele.
 
-use crate::{askpass, vault::Host};
+use crate::{askpass, transfer::expand_tilde, vault::Host};
 use anyhow::{Context, Result, bail};
 use rust_i18n::t;
 use std::{
@@ -286,13 +286,6 @@ pub fn valid_resolution(r: &str) -> bool {
     match r.split_once('x') {
         Some((w, h)) => w.parse::<u16>().is_ok() && h.parse::<u16>().is_ok(),
         None => false,
-    }
-}
-
-fn expand_tilde(p: &str) -> PathBuf {
-    match p.strip_prefix("~/") {
-        Some(rest) => dirs::home_dir().unwrap_or_default().join(rest),
-        None => p.into(),
     }
 }
 

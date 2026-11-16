@@ -1,10 +1,12 @@
 use crate::{
     clipboard::Clip,
+    complete::{self, Listing, RemoteLister},
     lang,
     rdp::{self, RdpSession},
     session::Session,
     sshconfig,
     sysinfo::{self, SysInfo},
+    transfer::{self, Transfer},
     vault::{self, Host, Kind, Store, Vault},
 };
 use anyhow::{Result, bail};
@@ -50,6 +52,8 @@ pub enum Mode {
         alias: String,
         change: rdp::CertChange,
     },
+    /// popup do rsync (tecla `r`)
+    Transfer(TransferForm),
     Help,
     /// Popup de idioma; o índice é a linha selecionada em `lang::LANGS`.
     Lang(usize),
@@ -248,6 +252,115 @@ impl Form {
     }
 }
 
+/// Popup do rsync: direção, caminho no servidor e caminho local.
+pub struct TransferForm {
+    pub alias: String,
+    pub req: transfer::Request,
+    /// 0 = direção, 1 = servidor, 2 = local
+    pub focus: usize,
+    pub error: Option<String>,
+    /// sugestão marcada com Tab (Enter escolhe)
+    pub selected: Option<usize>,
+    /// conexão aberta só para listar as pastas do servidor
+    remote_ls: Option<RemoteLister>,
+}
+
+/// O que aparece embaixo do campo de caminho.
+pub enum Suggestions {
+    None,
+    Loading,
+    Failed(String),
+    List(Vec<String>),
+}
+
+impl TransferForm {
+    fn value_mut(&mut self) -> Option<&mut String> {
+        self.selected = None;
+        match self.focus {
+            1 => Some(&mut self.req.remote),
+            2 => Some(&mut self.req.local),
+            _ => None,
+        }
+    }
+
+    fn value(&self) -> &str {
+        match self.focus {
+            1 => &self.req.remote,
+            2 => &self.req.local,
+            _ => "",
+        }
+    }
+
+    pub fn suggestions(&self) -> Suggestions {
+        let (dir, prefix) = complete::split(self.value());
+        let listing = match (self.focus, &self.remote_ls) {
+            (1, Some(ls)) => ls.get(complete::remote_dir(dir)),
+            (2, _) => complete::local(dir),
+            _ => return Suggestions::None,
+        };
+        match listing {
+            Listing::Loading => Suggestions::Loading,
+            Listing::Failed(e) => Suggestions::Failed(e),
+            Listing::Ready(entries) => {
+                let names = complete::matches(&entries, prefix);
+                // já digitado por inteiro: não sobra nada para sugerir
+                if names == [prefix] {
+                    return Suggestions::None;
+                }
+                Suggestions::List(names.into_iter().map(String::from).collect())
+            }
+        }
+    }
+
+    /// Pede ao servidor a pasta que está sendo digitada.
+    fn refresh(&mut self) {
+        if self.focus == 1
+            && let Some(ls) = &mut self.remote_ls
+        {
+            let (dir, _) = complete::split(&self.req.remote);
+            ls.request(complete::remote_dir(dir));
+        }
+    }
+
+    /// Tab: completa o começo em comum; se não houver o que completar, percorre as sugestões.
+    fn tab(&mut self, back: bool) {
+        let Suggestions::List(names) = self.suggestions() else {
+            return;
+        };
+        let n = names.len();
+        if n == 0 {
+            return;
+        }
+        if let Some(i) = self.selected {
+            self.selected = Some(if back { (i + n - 1) % n } else { (i + 1) % n });
+            return;
+        }
+        let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+        let common = complete::common_prefix(&refs);
+        let (dir, prefix) = complete::split(self.value());
+        if common.len() > prefix.len() {
+            let new = format!("{dir}{common}");
+            if let Some(v) = self.value_mut() {
+                *v = new;
+            }
+        } else {
+            self.selected = Some(if back { n - 1 } else { 0 });
+        }
+    }
+
+    fn accept(&mut self) {
+        let (Some(i), Suggestions::List(names)) = (self.selected, self.suggestions()) else {
+            return;
+        };
+        let Some(name) = names.get(i) else { return };
+        let (dir, _) = complete::split(self.value());
+        let new = format!("{dir}{name}");
+        if let Some(v) = self.value_mut() {
+            *v = new;
+        }
+    }
+}
+
 /// Comando que roda em tela cheia, fora da TUI.
 pub enum External {
     Ssh(String),
@@ -275,6 +388,7 @@ pub struct App {
     /// coletas de informações esperando a sessão completar `sysinfo::DELAY`
     sysinfo_pending: Vec<String>,
     sysinfo_running: Vec<(String, SysinfoSlot)>,
+    pub transfers: Vec<Transfer>,
     pub active: usize,
     /// teclas vão para o terminal da sessão ativa
     pub term_focus: bool,
@@ -313,6 +427,7 @@ impl App {
             rdp_sessions: Vec::new(),
             sysinfo_pending: Vec::new(),
             sysinfo_running: Vec::new(),
+            transfers: Vec::new(),
             active: 0,
             term_focus: false,
             term_size: (24, 80),
@@ -445,8 +560,129 @@ impl App {
         }
     }
 
+    /// Tecla `r`: abre o popup sempre do zero (baixar para a pasta de downloads).
+    fn open_transfer(&mut self, idx: usize) {
+        let h = &self.store.hosts[idx];
+        if h.kind != Kind::Ssh {
+            return self.set_status(t!("st.ssh_only"));
+        }
+        if self.transfers.iter().any(|t| t.alias == h.alias) {
+            return self.set_status(t!("st.transfer_busy", alias = h.alias));
+        }
+        // já conecta para as sugestões chegarem rápido quando o campo do servidor for usado
+        let remote_ls = RemoteLister::start(h, self.output.clone()).ok();
+        let mut form = TransferForm {
+            alias: h.alias.clone(),
+            req: transfer::Request::to_downloads(),
+            focus: 0,
+            error: None,
+            selected: None,
+            remote_ls,
+        };
+        if let Some(ls) = &mut form.remote_ls {
+            ls.request("");
+        }
+        self.mode = Mode::Transfer(form);
+    }
+
+    fn key_transfer(&mut self, key: KeyEvent) {
+        let Mode::Transfer(f) = &mut self.mode else {
+            return;
+        };
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        match key.code {
+            KeyCode::Esc if f.selected.is_some() => f.selected = None,
+            KeyCode::Esc => {
+                self.mode = Mode::List;
+                return;
+            }
+            KeyCode::Down => {
+                f.focus = (f.focus + 1) % 3;
+                f.selected = None;
+            }
+            KeyCode::Up => {
+                f.focus = (f.focus + 2) % 3;
+                f.selected = None;
+            }
+            KeyCode::Tab if f.focus == 0 => f.focus = 1,
+            KeyCode::BackTab if f.focus == 0 => f.focus = 2,
+            KeyCode::Tab => f.tab(false),
+            KeyCode::BackTab => f.tab(true),
+            KeyCode::Left | KeyCode::Right | KeyCode::Char(' ') if f.focus == 0 => {
+                f.req.upload = !f.req.upload
+            }
+            KeyCode::Char('u') if ctrl => {
+                if let Some(v) = f.value_mut() {
+                    v.clear();
+                }
+            }
+            KeyCode::Backspace => {
+                if let Some(v) = f.value_mut() {
+                    v.pop();
+                }
+            }
+            KeyCode::Char(c) if !ctrl => {
+                if let Some(v) = f.value_mut() {
+                    v.push(c);
+                }
+            }
+            KeyCode::Enter if f.selected.is_some() => f.accept(),
+            KeyCode::Enter => return self.start_transfer(),
+            _ => {}
+        }
+        if let Mode::Transfer(f) = &mut self.mode {
+            f.refresh();
+        }
+    }
+
+    fn start_transfer(&mut self) {
+        let Mode::Transfer(f) = &mut self.mode else {
+            return;
+        };
+        let Some(idx) = self.store.hosts.iter().position(|h| h.alias == f.alias) else {
+            self.mode = Mode::List;
+            return;
+        };
+        let req = transfer::Request {
+            upload: f.req.upload,
+            remote: f.req.remote.trim().to_string(),
+            local: f.req.local.trim().to_string(),
+        };
+        match Transfer::start(&self.store.hosts[idx], &req) {
+            Ok(t) => {
+                let alias = f.alias.clone();
+                self.transfers.push(t);
+                self.mode = Mode::List;
+                self.set_status(t!("st.transfer_started", alias = alias));
+            }
+            Err(e) => f.error = Some(format!("{e:#}")),
+        }
+    }
+
+    fn tick_transfers(&mut self) {
+        let mut i = 0;
+        while i < self.transfers.len() {
+            let Some(result) = self.transfers[i].poll() else {
+                i += 1;
+                continue;
+            };
+            let t = self.transfers.remove(i);
+            let time = crate::ui::elapsed(t.started.elapsed().as_secs());
+            match result {
+                Ok(bytes) => self.set_status(t!(
+                    "st.transfer_ok",
+                    alias = t.alias,
+                    bytes = bytes,
+                    time = time
+                )),
+                Err(e) => self.set_status(t!("st.transfer_failed", alias = t.alias, err = e)),
+            }
+        }
+    }
+
     pub fn tick(&mut self) {
         self.tick_sysinfo();
+        self.tick_transfers();
         if let Some((_, t)) = &self.status
             && t.elapsed() > Duration::from_secs(6)
         {
@@ -614,7 +850,7 @@ impl App {
     }
 
     fn request_quit(&mut self) {
-        if self.open_count() == 0 {
+        if self.open_count() == 0 && self.transfers.is_empty() {
             self.quit = true;
         } else {
             self.mode = Mode::ConfirmQuit;
@@ -705,7 +941,6 @@ impl App {
         true
     }
 
-
     /// Roda do mouse: sobre o terminal rola a sessão; no resto da tela vale como ↑/↓.
     pub fn on_mouse(&mut self, m: MouseEvent) {
         let up = match m.kind {
@@ -753,6 +988,7 @@ impl App {
                     self.mode = Mode::List;
                 }
             }
+            Mode::Transfer(_) => self.key_transfer(key),
             Mode::Help => self.mode = Mode::List,
             Mode::Lang(_) => self.key_lang(key),
         }
@@ -774,6 +1010,12 @@ impl App {
                 }
             }
             Mode::Password { input, .. } => input.push_str(text),
+            Mode::Transfer(f) => {
+                if let Some(v) = f.value_mut() {
+                    v.push_str(text);
+                }
+                f.refresh();
+            }
             Mode::Filter => {
                 self.filter.push_str(text);
                 self.clamp_selection();
@@ -981,6 +1223,11 @@ impl App {
                 }
             }
             KeyCode::Char('i') => self.import(),
+            KeyCode::Char('r') => {
+                if let Some(i) = self.selected_host() {
+                    self.open_transfer(i);
+                }
+            }
             KeyCode::Char('U') => {
                 if let Some(i) = self.selected_host() {
                     self.collect_sysinfo(i);

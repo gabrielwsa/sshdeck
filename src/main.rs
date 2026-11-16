@@ -1,11 +1,13 @@
 mod app;
 mod askpass;
 mod clipboard;
+mod complete;
 mod lang;
 mod rdp;
 mod session;
 mod sshconfig;
 mod sysinfo;
+mod transfer;
 mod ui;
 mod vault;
 

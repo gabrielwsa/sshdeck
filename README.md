@@ -92,6 +92,24 @@ alias existir nos dois arquivos, vale o do sshdeck.
 - **ssh-copy-id** (`K`): instala sua chave no servidor e preenche a senha salva automaticamente.
   Sem IdentityFile, quem escolhe a chave é o `ssh-copy-id`: as do ssh-agent, se houver; senão o
   `~/.ssh/id*.pub` mais recente.
+- **rsync** (`r`): baixa ou envia arquivos em segundo plano. O popup sempre abre do zero, com a
+  direção (`←/→` troca entre baixar e enviar), o caminho no servidor e o local (a pasta de
+  downloads); embaixo mostra como vai ficar (`srv:/var/log/  →  ~/Downloads/`). `↑/↓` troca de
+  campo e `Enter` inicia.
+  - Autocomplete nos dois caminhos, como no shell: as sugestões aparecem embaixo do campo,
+    `Tab` completa o começo em comum e, se não houver mais o que completar, percorre as
+    sugestões (`Shift+Tab` volta); `Enter` escolhe a marcada. No servidor, o sshdeck abre uma
+    conexão ssh escondida enquanto o popup está aberto e lista cada pasta por ela (a 1ª leva o
+    tempo de conectar, as outras são na hora); no local, lê o disco direto. Arquivos ocultos só
+    aparecem quando o nome digitado começa com ponto, e são mostradas até 200 sugestões.
+  - Roda `rsync -azh --partial --no-i-r` pelo alias do host, com a senha salva; se a conexão
+    cair, rodar de novo continua de onde parou.
+  - O progresso (porcentagem, total, velocidade, tempo restante) aparece na borda de baixo, e ao
+    terminar a barra de status mostra o total e o tempo. Dá para ter um rsync por host ao mesmo
+    tempo.
+  - Como no rsync, `pasta/` copia o conteúdo da pasta e `pasta` copia a pasta inteira. No
+    servidor, caminho sem `/` no início começa no home do usuário.
+  - O servidor precisa ter `rsync` instalado e já ter sido conectado uma vez (chave conhecida).
 
 ### RDP (Windows)
 - No formulário, o campo **Tipo** alterna entre SSH e RDP (`←/→` ou espaço). Hosts RDP têm
@@ -145,6 +163,7 @@ alias existir nos dois arquivos, vale o do sshdeck.
 | `Tab` / `l` | foca o terminal |
 | `x` | fecha a sessão (ou a janela RDP) do host selecionado |
 | `K` | `ssh-copy-id` no host (preenche a senha salva sozinho) |
+| `r` | rsync: baixa ou envia arquivos em segundo plano |
 | `c` / `y` | copia a senha |
 | `a` / `e` / `d` | adicionar / editar / apagar |
 | `/` | filtrar |
@@ -171,7 +190,9 @@ a senha, `Ctrl+U` limpa o campo.
 - No modo OSC 52, o sshdeck não consegue limpar o clipboard depois dos 45s.
 - No túnel do RDP, a senha do host SSH também vai por variável de ambiente para o `ssh` em
   segundo plano, durante a conexão do túnel.
-- Na coleta de informações do servidor, a senha do host vai por variável de ambiente para o
-  `ssh` em segundo plano, durante os poucos segundos da conexão (como no `K`).
+- Na coleta de informações do servidor e no rsync, a senha do host vai por variável de ambiente
+  para o `ssh` em segundo plano, enquanto a conexão dura (como no `K`).
+- Fechar o sshdeck cancela os rsync em andamento (ele pergunta antes); rodar de novo continua
+  de onde parou.
 - Não há bloqueio automático por inatividade: o cofre fica aberto enquanto o programa estiver
   aberto.

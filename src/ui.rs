@@ -1,11 +1,11 @@
 use crate::{
-    app::{App, Field, Form, Mode, PwPurpose},
+    app::{App, Field, Form, Mode, PwPurpose, Suggestions, TransferForm},
     lang,
     vault::{Host, Kind},
 };
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
+    layout::{Constraint, Layout, Margin, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, BorderType, Cell, Clear, Paragraph, Row, Table, Wrap},
@@ -96,11 +96,16 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             &t!("ui.delete_title"),
             &t!("ui.delete_q", alias = app.store.hosts[*i].alias),
         ),
-        Mode::ConfirmQuit => draw_confirm(
-            f,
-            &t!("ui.quit_title"),
-            &t!("ui.quit_q", n = app.open_count()),
-        ),
+        Mode::ConfirmQuit => {
+            let mut q = Vec::new();
+            if app.open_count() > 0 {
+                q.push(t!("ui.quit_q", n = app.open_count()));
+            }
+            if !app.transfers.is_empty() {
+                q.push(t!("ui.quit_transfers_q", n = app.transfers.len()));
+            }
+            draw_confirm(f, &t!("ui.quit_title"), &q.join("\n"))
+        }
         Mode::ConfirmSysinfo(alias) => draw_question(
             f,
             &t!("ui.sysinfo_title"),
@@ -118,6 +123,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             ),
             Color::Yellow,
         ),
+        Mode::Transfer(form) => draw_transfer(f, form),
         Mode::Help => draw_help(f),
         Mode::Lang(i) => draw_lang(f, *i),
         _ => {}
@@ -599,7 +605,7 @@ fn draw_info(f: &mut Frame, app: &App, area: Rect) {
     );
 }
 
-fn elapsed(secs: u64) -> String {
+pub fn elapsed(secs: u64) -> String {
     match secs {
         s if s < 60 => format!("{s}s"),
         s if s < 3600 => format!("{}m {:02}s", s / 60, s % 60),
@@ -683,6 +689,24 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         | Mode::ConfirmQuit
         | Mode::ConfirmSysinfo(_)
         | Mode::ConfirmCert { .. } => confirm_hints(),
+        Mode::Transfer(form) if form.focus == 0 => vec![
+            k(t!("key.arrows_space"), t!("h.direction")),
+            k("↑/↓", t!("h.field")),
+            k("Enter", t!("h.start")),
+            k("Esc", t!("h.cancel")),
+        ],
+        Mode::Transfer(form) if form.selected.is_some() => vec![
+            k("Tab/Shift+Tab", t!("h.next_prev")),
+            k("Enter", t!("h.pick")),
+            k("Esc", t!("h.back")),
+        ],
+        Mode::Transfer(_) => vec![
+            k("Tab", t!("h.complete")),
+            k("↑/↓", t!("h.field")),
+            k("Enter", t!("h.start")),
+            k("Ctrl+U", t!("h.clear_field")),
+            k("Esc", t!("h.cancel")),
+        ],
         Mode::Help => vec![k(t!("key.any"), t!("h.close"))],
         Mode::Lang(_) => vec![
             k("↑/↓", t!("h.choose")),
@@ -705,6 +729,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
             k("Tab", t!("h.terminal")),
             k("x", t!("h.close_session")),
             k("K", "ssh-copy-id"),
+            k("r", "rsync"),
             k("c", t!("h.copy_pw")),
             k("a/e/d", t!("h.add_edit_del")),
             k("/", t!("h.filter")),
@@ -716,6 +741,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
             k("x", t!("h.close")),
             k("s", t!("h.fullscreen")),
             k("K", "ssh-copy-id"),
+            k("r", "rsync"),
             k("c", t!("h.copy_pw")),
             k("a/e/d", t!("h.add_edit_del")),
             k("i", t!("h.import")),
@@ -735,11 +761,8 @@ fn confirm_hints() -> Vec<Hint> {
     ]
 }
 
-/// Mensagem de status no canto inferior direito da borda, sem esconder os atalhos.
+/// Na borda de baixo: transferências em andamento à esquerda, mensagem de status à direita.
 fn draw_status(f: &mut Frame, app: &App, main: Rect) {
-    let Some((msg, _)) = &app.status else {
-        return;
-    };
     if main.height < 2 || main.width < 6 {
         return;
     }
@@ -748,6 +771,29 @@ fn draw_status(f: &mut Frame, app: &App, main: Rect) {
         y: main.bottom() - 1,
         width: main.width - 4,
         height: 1,
+    };
+    if !app.transfers.is_empty() {
+        let mut spans = Vec::new();
+        for t in &app.transfers {
+            let p = t.progress();
+            let arrow = if t.upload { "↑" } else { "↓" };
+            spans.push(Span::styled(
+                format!(" {arrow} {} ", t.alias),
+                Style::new().fg(Color::Yellow).bold(),
+            ));
+            spans.push(Span::styled(
+                if p.rate.is_empty() {
+                    format!("{} ", t!("ui.transfer_preparing"))
+                } else {
+                    format!("{}% · {} · {} · {} ", p.percent, p.bytes, p.rate, p.eta)
+                },
+                Style::new().fg(Color::Yellow),
+            ));
+        }
+        f.render_widget(Line::from(spans), area);
+    }
+    let Some((msg, _)) = &app.status else {
+        return;
     };
     f.render_widget(
         Line::from(Span::styled(
@@ -915,6 +961,243 @@ fn draw_form(f: &mut Frame, form: &Form) {
     f.render_widget(Paragraph::new(lines).block(block), area);
 }
 
+/// Sugestões visíveis de uma vez na caixinha flutuante.
+const SUGGESTION_ROWS: usize = 8;
+const TRANSFER_W: u16 = 100;
+const TRANSFER_H: u16 = 14;
+
+fn draw_transfer(f: &mut Frame, form: &TransferForm) {
+    let area = centered(f.area(), TRANSFER_W, TRANSFER_H);
+    let labels = [
+        t!("transfer.direction"),
+        t!("transfer.remote"),
+        t!("transfer.local"),
+    ];
+    let width = labels.iter().map(|l| l.chars().count()).max().unwrap_or(0) + 2;
+    let label = |i: usize| {
+        let style = if form.focus == i {
+            Style::new().fg(ACCENT).bold()
+        } else {
+            Style::new().dim()
+        };
+        vec![
+            Span::styled(if form.focus == i { "▶ " } else { "  " }, style),
+            Span::styled(format!("{:<width$}", labels[i]), style),
+        ]
+    };
+    // largura útil dentro da caixa (bordas, "▶ ", rótulo e o cursor)
+    let room = (area.width as usize).saturating_sub(5 + width);
+    // coluna (dentro da caixa) onde começa o nome sendo digitado no campo focado
+    let mut name_col = 0usize;
+    let mut field = |i: usize, prefix: Option<String>, value: &str, placeholder: Cow<str>| {
+        let mut spans = label(i);
+        let pre = prefix.as_ref().map_or(0, |p| p.chars().count());
+        if let Some(p) = prefix {
+            spans.push(Span::raw(p).dark_gray());
+        }
+        // caminho longo: mostra o fim, que é onde se está digitando
+        let shown = tail(value, room.saturating_sub(pre));
+        if form.focus == i {
+            let typed = crate::complete::split(value).1.chars().count();
+            name_col = 2 + width + pre + shown.chars().count().saturating_sub(typed);
+        }
+        let cursor = Span::styled("▏", Style::new().fg(ACCENT));
+        if shown.is_empty() {
+            if form.focus == i {
+                spans.push(cursor.clone());
+            }
+            spans.push(Span::raw(placeholder.into_owned()).dark_gray());
+        } else {
+            spans.push(Span::raw(shown));
+            if form.focus == i {
+                spans.push(cursor);
+            }
+        }
+        Line::from(spans)
+    };
+
+    let mut dir = label(0);
+    for (upload, name) in [(false, t!("transfer.down")), (true, t!("transfer.up"))] {
+        dir.push(if form.req.upload == upload {
+            Span::styled(
+                format!(" {name} "),
+                Style::new().fg(Color::Black).bg(ACCENT).bold(),
+            )
+        } else {
+            Span::raw(format!(" {name} ")).dark_gray()
+        });
+        dir.push(Span::raw(" "));
+    }
+    if form.focus == 0 {
+        dir.push(Span::raw(format!(" {}", t!("form.toggle"))).dark_gray());
+    }
+
+    let remote = form.req.remote.trim();
+    let local = form.req.local.trim();
+    let remote_full = format!("{}:{}", form.alias, remote);
+    let (from, to) = if form.req.upload {
+        (local, remote_full.as_str())
+    } else {
+        (remote_full.as_str(), local)
+    };
+    // linhas fixas: os campos não se mexem quando as sugestões aparecem
+    let remote_line = field(
+        1,
+        Some(format!("{}:", form.alias)),
+        &form.req.remote,
+        t!("transfer.remote_ph"),
+    );
+    let local_line = field(2, None, &form.req.local, "".into());
+    let mut lines = vec![Line::from(""), Line::from(dir), Line::from("")];
+    let remote_row = lines.len() as u16;
+    let field_row = match form.focus {
+        1 => Some(remote_row),
+        2 => Some(remote_row + 2),
+        _ => None,
+    };
+    lines.extend([
+        remote_line,
+        Line::from(""),
+        local_line,
+        Line::from(""),
+        Line::from(vec![
+            Span::raw(format!("  {}", " ".repeat(width))),
+            Span::styled(
+                tail(&format!("{from}  →  {to}"), room),
+                Style::new().fg(ACCENT),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(format!("  {}", t!("transfer.tip_slash"))).dark_gray(),
+        Line::from(format!("  {}", t!("transfer.tip_home"))).dark_gray(),
+    ]);
+    match &form.error {
+        Some(e) => lines.push(Line::from(Span::styled(
+            format!("  {e}"),
+            Style::new().fg(Color::Red),
+        ))),
+        None => lines.push(Line::from("")),
+    }
+    f.render_widget(Clear, area);
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .title(Span::styled(
+            format!(" {} · {} ", t!("transfer.title"), form.alias),
+            Style::new().fg(ACCENT).bold(),
+        ));
+    f.render_widget(Paragraph::new(lines).block(block), area);
+
+    if let Some(row) = field_row {
+        // caixinha flutuante logo acima do campo, começando onde o nome é digitado;
+        // pode passar da borda de cima do popup, por cima da lista
+        let x = area.x + 1 + name_col as u16;
+        let inner = area.inner(Margin::new(1, 1));
+        let top = f.area().y;
+        let bounds = Rect {
+            y: top,
+            height: (area.y + 1 + row).saturating_sub(top),
+            ..inner
+        };
+        draw_suggestions(f, form, bounds, x.saturating_sub(1));
+    }
+}
+
+/// Últimos `room` caracteres, com "…" no começo se cortou.
+fn tail(s: &str, room: usize) -> String {
+    let n = s.chars().count();
+    if n <= room {
+        return s.to_string();
+    }
+    let keep = room.saturating_sub(1);
+    format!("…{}", s.chars().skip(n - keep).collect::<String>())
+}
+
+/// Primeiros `room` caracteres, com "…" no fim se cortou.
+fn head(s: &str, room: usize) -> String {
+    if s.chars().count() <= room {
+        return s.to_string();
+    }
+    let mut out: String = s.chars().take(room.saturating_sub(1)).collect();
+    out.push('…');
+    out
+}
+
+/// `bounds`: o espaço acima do campo; a caixinha encosta no fundo dele.
+fn draw_suggestions(f: &mut Frame, form: &TransferForm, bounds: Rect, x: u16) {
+    // terminal baixo: mostra menos itens de uma vez
+    let rows = SUGGESTION_ROWS.min(bounds.height.saturating_sub(2) as usize);
+    if rows == 0 {
+        return;
+    }
+    let (items, more): (Vec<Line>, usize) = match form.suggestions() {
+        Suggestions::None => return,
+        Suggestions::Loading => (vec![Line::from(t!("transfer.loading")).dark_gray()], 0),
+        Suggestions::Failed(e) => (
+            vec![Line::from(t!("transfer.no_suggestions", err = e).into_owned()).dark_gray()],
+            0,
+        ),
+        Suggestions::List(names) => {
+            // janela que acompanha a sugestão marcada
+            let sel = form.selected.unwrap_or(0);
+            let start = sel.saturating_sub(rows - 1);
+            let lines = names
+                .iter()
+                .enumerate()
+                .skip(start)
+                .take(rows)
+                .map(|(i, name)| {
+                    let style = if form.selected == Some(i) {
+                        Style::new().fg(Color::Black).bg(ACCENT).bold()
+                    } else if name.ends_with('/') {
+                        Style::new().fg(ACCENT)
+                    } else {
+                        Style::new()
+                    };
+                    Line::from(Span::styled(name.clone(), style))
+                })
+                .collect();
+            (lines, names.len().saturating_sub(start + rows))
+        }
+    };
+    let more_title = (more > 0).then(|| format!(" {} ", t!("transfer.more", n = more)));
+    let widest = items
+        .iter()
+        .map(Line::width)
+        .chain(more_title.iter().map(|m| m.chars().count()))
+        .max()
+        .unwrap_or(0);
+    let w = (widest as u16 + 4).clamp(16, 60).min(bounds.width);
+    // caminho comprido: encosta na direita do popup em vez de passar dela
+    let x = x.min(bounds.right().saturating_sub(w));
+    let h = (items.len() as u16 + 2).min(bounds.height);
+    let y = bounds.bottom() - h;
+    let room = w.saturating_sub(4) as usize;
+    let items: Vec<Line> = items
+        .into_iter()
+        .map(|l| {
+            let style = l.spans.first().map(|s| s.style).unwrap_or_default();
+            let text: String = l.spans.iter().map(|s| s.content.as_ref()).collect();
+            // a linha marcada ganha o fundo na largura toda da caixa
+            let text = format!(" {:<room$} ", head(&text, room));
+            Line::from(Span::styled(text, style)).style(l.style)
+        })
+        .collect();
+    let area = Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+    let mut block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::new().dark_gray());
+    if let Some(m) = more_title {
+        block = block.title_bottom(Line::from(m).dark_gray().right_aligned());
+    }
+    f.render_widget(Clear, area);
+    f.render_widget(Paragraph::new(items).block(block), area);
+}
+
 fn draw_confirm(f: &mut Frame, title: &str, question: &str) {
     draw_question(f, title, question, Color::Red);
 }
@@ -974,6 +1257,7 @@ fn draw_help(f: &mut Frame) {
         k("Tab / l", t!("help.tab")),
         k("x", t!("help.x")),
         k("K", t!("help.k")),
+        k("r", t!("help.r")),
         k("c / y", t!("help.c")),
         k("a", t!("help.a")),
         k("e", t!("help.e")),

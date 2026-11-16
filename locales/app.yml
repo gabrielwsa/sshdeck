@@ -205,6 +205,46 @@ st.sysinfo_unknown_key:
   pt: "Conecte uma vez em %{alias} (Enter) para aceitar a chave do servidor, depois use U"
   en: "Connect to %{alias} once (Enter) to accept the server key, then press U"
   es: "Conéctese una vez a %{alias} (Enter) para aceptar la clave del servidor, luego use U"
+err.transfer_paths:
+  pt: "Preencha o caminho no servidor e o local"
+  en: "Fill in both the server and the local path"
+  es: "Complete la ruta del servidor y la local"
+err.transfer_local:
+  pt: "Não existe: %{path}"
+  en: "Does not exist: %{path}"
+  es: "No existe: %{path}"
+err.transfer_mkdir:
+  pt: "não deu para criar a pasta local"
+  en: "could not create the local folder"
+  es: "no se pudo crear la carpeta local"
+err.rsync_missing:
+  pt: "rsync não encontrado (instale o pacote rsync)"
+  en: "rsync not found (install the rsync package)"
+  es: "rsync no encontrado (instale el paquete rsync)"
+st.transfer_started:
+  pt: "rsync %{alias} iniciado; o progresso aparece na borda de baixo"
+  en: "rsync %{alias} started; progress shows on the bottom border"
+  es: "rsync %{alias} iniciado; el progreso aparece en el borde inferior"
+st.transfer_ok:
+  pt: "rsync %{alias} concluído: %{bytes} em %{time}"
+  en: "rsync %{alias} done: %{bytes} in %{time}"
+  es: "rsync %{alias} terminado: %{bytes} en %{time}"
+st.transfer_failed:
+  pt: "rsync %{alias} falhou: %{err}"
+  en: "rsync %{alias} failed: %{err}"
+  es: "rsync %{alias} falló: %{err}"
+st.transfer_busy:
+  pt: "Já tem um rsync em andamento em %{alias}"
+  en: "An rsync is already running on %{alias}"
+  es: "Ya hay un rsync en curso en %{alias}"
+st.transfer_unknown_key:
+  pt: "conecte uma vez (Enter) para aceitar a chave do servidor"
+  en: "connect once (Enter) to accept the server key"
+  es: "conéctese una vez (Enter) para aceptar la clave del servidor"
+st.transfer_no_remote_rsync:
+  pt: "o servidor não tem rsync instalado"
+  en: "rsync is not installed on the server"
+  es: "el servidor no tiene rsync instalado"
 st.sysinfo_ssh_only:
   pt: "A coleta de informações é só para hosts SSH"
   en: "Information collection is only for SSH hosts"
@@ -417,6 +457,62 @@ ui.quit_q:
   pt: "Sair e fechar %{n} conexão(ões) abertas?"
   en: "Quit and close %{n} open connection(s)?"
   es: "¿Salir y cerrar %{n} conexión(es) abierta(s)?"
+ui.quit_transfers_q:
+  pt: "Cancelar %{n} rsync em andamento?"
+  en: "Cancel %{n} running rsync?"
+  es: "¿Cancelar %{n} rsync en curso?"
+ui.transfer_preparing:
+  pt: "listando arquivos…"
+  en: "listing files…"
+  es: "listando archivos…"
+transfer.title:
+  pt: "Transferir com rsync"
+  en: "Transfer with rsync"
+  es: "Transferir con rsync"
+transfer.direction:
+  pt: "Direção"
+  en: "Direction"
+  es: "Dirección"
+transfer.down:
+  pt: "Baixar do servidor"
+  en: "Download from server"
+  es: "Bajar del servidor"
+transfer.up:
+  pt: "Enviar para o servidor"
+  en: "Upload to server"
+  es: "Subir al servidor"
+transfer.remote:
+  pt: "Servidor"
+  en: "Server"
+  es: "Servidor"
+transfer.local:
+  pt: "Local"
+  en: "Local"
+  es: "Local"
+transfer.remote_ph:
+  pt: "/var/log/nginx/"
+  en: "/var/log/nginx/"
+  es: "/var/log/nginx/"
+transfer.tip_slash:
+  pt: "pasta/ copia o conteúdo da pasta · pasta (sem /) copia a pasta inteira"
+  en: "dir/ copies the contents of the folder · dir (no /) copies the folder itself"
+  es: "carpeta/ copia el contenido · carpeta (sin /) copia la carpeta entera"
+transfer.tip_home:
+  pt: "no servidor, caminho sem / no início começa no home do usuário"
+  en: "on the server, a path without a leading / starts at the user's home"
+  es: "en el servidor, una ruta sin / al inicio empieza en el home del usuario"
+transfer.loading:
+  pt: "carregando…"
+  en: "loading…"
+  es: "cargando…"
+transfer.no_suggestions:
+  pt: "sem sugestões: %{err}"
+  en: "no suggestions: %{err}"
+  es: "sin sugerencias: %{err}"
+transfer.more:
+  pt: "… mais %{n}"
+  en: "… %{n} more"
+  es: "… %{n} más"
 ui.filter:
   pt: "filtro: %{f}"
   en: "filter: %{f}"
@@ -719,6 +815,34 @@ h.sysinfo:
   pt: "info do servidor"
   en: "server info"
   es: "info del servidor"
+h.direction:
+  pt: "baixar/enviar"
+  en: "download/upload"
+  es: "bajar/subir"
+h.start:
+  pt: "iniciar"
+  en: "start"
+  es: "iniciar"
+h.field:
+  pt: "campo"
+  en: "field"
+  es: "campo"
+h.complete:
+  pt: "completar"
+  en: "complete"
+  es: "completar"
+h.next_prev:
+  pt: "próxima/anterior"
+  en: "next/previous"
+  es: "siguiente/anterior"
+h.pick:
+  pt: "escolher"
+  en: "pick"
+  es: "elegir"
+h.back:
+  pt: "voltar"
+  en: "back"
+  es: "volver"
 h.import:
   pt: "importar"
   en: "import"
@@ -777,6 +901,10 @@ help.u:
   pt: "coleta/atualiza sistema, kernel, CPU e memória do host"
   en: "collect/refresh system, kernel, CPU and memory of the host"
   es: "recopila/actualiza sistema, kernel, CPU y memoria del host"
+help.r:
+  pt: "rsync: baixa ou envia arquivos em segundo plano, com autocomplete dos caminhos"
+  en: "rsync: download or upload files in the background, with path autocomplete"
+  es: "rsync: baja o sube archivos en segundo plano, con autocompletado de rutas"
 help.i:
   pt: "importa hosts do ~/.ssh/config"
   en: "import hosts from ~/.ssh/config"

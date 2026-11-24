@@ -36,6 +36,12 @@ pub struct Host {
     pub password: String,
     #[serde(default)]
     pub notes: String,
+    /// porta do SFTP no navegador de arquivos (`None` = a mesma do SSH)
+    #[serde(default)]
+    pub sftp_port: Option<u16>,
+    /// porta do FTP (`None` = 21)
+    #[serde(default)]
+    pub ftp_port: Option<u16>,
     // --- só RDP ---
     #[serde(default)]
     pub domain: String,

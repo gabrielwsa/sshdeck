@@ -24,6 +24,9 @@ pub struct HostForm {
     pub domain: String,
     pub resolution: String,
     pub gateway: String,
+    /// vazias = padrão (SFTP na porta do SSH, FTP na 21)
+    pub sftp_port: String,
+    pub ftp_port: String,
 }
 
 pub fn default_port(kind: Kind) -> u16 {
@@ -47,6 +50,8 @@ impl HostForm {
             domain: h.domain.clone(),
             resolution: h.resolution.clone(),
             gateway: h.gateway.clone(),
+            sftp_port: h.sftp_port.map(|p| p.to_string()).unwrap_or_default(),
+            ftp_port: h.ftp_port.map(|p| p.to_string()).unwrap_or_default(),
         }
     }
 
@@ -77,6 +82,22 @@ impl HostForm {
         if rdp && !rdp::valid_resolution(self.resolution.trim()) {
             bail!("{}", t!("err.resolution"));
         }
+        let opt_port = |v: &str| -> Result<Option<u16>> {
+            match v.trim() {
+                "" => Ok(None),
+                p => p
+                    .parse::<u16>()
+                    .ok()
+                    .filter(|p| *p > 0)
+                    .map(Some)
+                    .ok_or_else(|| anyhow::anyhow!("{}", t!("err.port"))),
+            }
+        };
+        let (sftp_port, ftp_port) = if rdp {
+            (None, None)
+        } else {
+            (opt_port(&self.sftp_port)?, opt_port(&self.ftp_port)?)
+        };
         let only = |cond: bool, v: &str| if cond { v.trim().to_string() } else { String::new() };
         Ok(Host {
             kind: self.kind,
@@ -91,6 +112,8 @@ impl HostForm {
             domain: only(rdp, &self.domain),
             resolution: only(rdp, &self.resolution),
             gateway: only(rdp, &self.gateway),
+            sftp_port,
+            ftp_port,
             ..Default::default()
         })
     }

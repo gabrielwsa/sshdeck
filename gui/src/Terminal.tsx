@@ -73,7 +73,7 @@ export default forwardRef<TermHandle, Props>(function Terminal(
 
   useEffect(() => {
     const xterm = new XTerm({
-      fontFamily: '"JetBrainsMono Nerd Font", "JetBrainsMono NF", monospace',
+      fontFamily: '"sshdeck mono", "JetBrainsMono Nerd Font", "JetBrainsMono NF", monospace',
       fontSize: 13.5,
       lineHeight: 1.0,
       cursorBlink: false,

@@ -41,6 +41,8 @@ export type HostForm = {
   domain: string;
   resolution: string;
   gateway: string;
+  sftpPort: string;
+  ftpPort: string;
 };
 
 export type TransferView = {
@@ -134,3 +136,55 @@ export const updateCheck = () => invoke<UpdateStatus>("update_check");
 export const updateDownload = () => invoke<void>("update_download");
 export const updateInstall = () => invoke<void>("update_install");
 export const updateOpenPage = () => invoke<void>("update_open_page");
+
+// --- navegador de arquivos (gui/src-tauri/src/files.rs) ---
+
+export type FileProto = "sftp" | "ftp";
+export type FileEntry = {
+  name: string;
+  path: string;
+  dir: boolean;
+  link: boolean;
+  size: number;
+  mtime: number | null;
+};
+export type FileListing = { path: string; entries: FileEntry[]; total: number };
+export type FilesProbe = { sftp: boolean; ftp: boolean; sftpPort: number; ftpPort: number };
+export type CopyEvent =
+  | {
+      type: "progress";
+      done: number;
+      total: number;
+      file: string;
+      filesDone: number;
+      filesTotal: number;
+      rate: number;
+    }
+  | { type: "finished"; error: string | null; cancelled: boolean };
+
+export const filesProbe = (alias: string) => invoke<FilesProbe>("files_probe", { alias });
+export const filesOpen = (alias: string, proto: FileProto) =>
+  invoke<{ id: number; home: string; port: number }>("files_open", { alias, proto });
+export const filesClose = (id: number) => invoke<void>("files_close", { id });
+/** `id = null` é o computador local */
+export const filesList = (
+  id: number | null,
+  path: string,
+  opts: { limit: number; filter: string; hidden: boolean },
+) => invoke<FileListing>("files_list", { id, path, ...opts });
+/** quais destes nomes já existem na pasta */
+export const filesExisting = (id: number | null, dir: string, names: string[]) =>
+  invoke<string[]>("files_existing", { id, dir, names });
+export const filesMkdir = (id: number | null, path: string) => invoke<void>("files_mkdir", { id, path });
+export const filesRename = (id: number | null, from: string, to: string) =>
+  invoke<void>("files_rename", { id, from, to });
+export const filesRemove = (id: number | null, items: { path: string; dir: boolean }[]) =>
+  invoke<void>("files_remove", { id, items });
+export const filesCopy = (
+  id: number,
+  upload: boolean,
+  items: { path: string; dir: boolean }[],
+  dest: string,
+  onEvent: Channel<CopyEvent>,
+) => invoke<number>("files_copy", { id, upload, items, dest, onEvent });
+export const filesCancel = (job: number) => invoke<void>("files_cancel", { job });

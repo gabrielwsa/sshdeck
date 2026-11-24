@@ -33,6 +33,9 @@ import {
 import Terminal, { type TermHandle } from "./Terminal";
 import RdpTab, { type RdpEvent, type RdpHandle } from "./RdpTab";
 import { UpdatePill, useUpdate } from "./Update";
+import FilesTab from "./FilesTab";
+import { TransferMenu } from "./TransferMenu";
+import type { FileProto } from "./api";
 
 /** Largura da barra lateral (px): padrão e limites do arraste. */
 const SIDE_DEFAULT = 272;
@@ -77,7 +80,9 @@ type Session = {
   key: number;
   alias: string;
   /** "copyid" é uma aba rodando o ssh-copy-id; ela fica aberta depois de terminar */
-  kind: "ssh" | "copyid" | "rdp";
+  kind: "ssh" | "copyid" | "rdp" | "files";
+  /** aba "files": o protocolo do navegador de arquivos */
+  proto?: FileProto;
   started: number;
   ended?: boolean;
   /** RDP ainda conectando (túnel, login) */
@@ -120,6 +125,8 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
     return saved >= SIDE_MIN && saved <= SIDE_MAX ? saved : SIDE_DEFAULT;
   });
   const [resizing, setResizing] = useState(false);
+  /** menu "Transferir" aberto (as teclas vão para ele) */
+  const [xferMenu, setXferMenu] = useState(false);
   const update = useUpdate();
 
   /** Reiniciar para atualizar: com sessões ou transferências abertas, pergunta antes. */
@@ -186,6 +193,11 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
   }, [busyBackground]);
 
   useEffect(() => localStorage.setItem("sshdeck.panel", showPanel ? "1" : "0"), [showPanel]);
+  // o menu "Transferir" é do host selecionado: trocou de host, fecha
+  useEffect(() => setXferMenu(false), [selected]);
+  useEffect(() => {
+    if (view === "session") setXferMenu(false);
+  }, [view]);
 
   const visible = useMemo(() => {
     const q = query.toLowerCase();
@@ -205,9 +217,9 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
   );
   const current = visible[selIndex] as Host | undefined;
   const activeSession = sessions[active] as Session | undefined;
-  /** aba da conexão do host (SSH ou RDP); a do ssh-copy-id não conta */
+  /** aba da conexão do host (SSH ou RDP); as do ssh-copy-id e de arquivos não contam */
   const sessionOf = (alias: string) =>
-    sessions.findIndex((s) => s.alias === alias && s.kind !== "copyid");
+    sessions.findIndex((s) => s.alias === alias && (s.kind === "ssh" || s.kind === "rdp"));
   /** true = conectado, false = RDP ainda conectando, undefined = sem conexão */
   const connection = (alias: string) => {
     const pos = sessionOf(alias);
@@ -216,6 +228,7 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
   const hostByAlias = (alias: string) => hosts.find((h) => h.alias === alias);
   const inSession = view === "session" && !!activeSession;
   const openCount = sessions.filter((s) => s.kind !== "copyid").length;
+  const fileTabs = sessions.filter((s) => s.kind === "files");
 
   useEffect(() => {
     if (sessions.length === 0) {
@@ -240,10 +253,17 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
     setTermFocus(true);
   }
 
-  function addTab(alias: string, kind: Session["kind"]) {
+  function addTab(alias: string, kind: Session["kind"], proto?: FileProto) {
     setSessions((ss) => [
       ...ss,
-      { key: nextKey.current++, alias, kind, started: Date.now(), connecting: kind === "rdp" },
+      {
+        key: nextKey.current++,
+        alias,
+        kind,
+        proto,
+        started: Date.now(),
+        connecting: kind === "rdp" || kind === "files",
+      },
     ]);
     setActive(sessions.length);
     setView("session");
@@ -300,11 +320,21 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
     setModal({ kind: "transfer", alias: h.alias });
   }
 
+  /** Escolha no menu "Transferir": rsync abre o popup; SFTP/FTP, o navegador de arquivos. */
+  function pickTransfer(h: Host, c: "rsync" | FileProto) {
+    setXferMenu(false);
+    if (c === "rsync") return openTransfer(h);
+    const pos = sessions.findIndex((s) => s.alias === h.alias && s.kind === "files" && s.proto === c);
+    if (pos >= 0) return goToSession(pos);
+    setStatus(t("files.opening", { proto: c.toUpperCase(), alias: h.alias }));
+    addTab(h.alias, "files", c);
+  }
+
   function closeSession(alias: string) {
     const pos = sessionOf(alias);
     if (pos < 0) return;
     const rdp = sessions[pos].kind === "rdp";
-    setSessions((ss) => ss.filter((s) => !(s.alias === alias && s.kind !== "copyid")));
+    setSessions((ss) => ss.filter((s) => !(s.alias === alias && (s.kind === "ssh" || s.kind === "rdp"))));
     setView("host");
     setTermFocus(false);
     setStatus(rdp ? t("st.rdp_closed", { alias }) : t("st.session_closed", { alias }));
@@ -407,7 +437,7 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
   }
 
   function onKey(e: KeyboardEvent) {
-    if (modal) return; // a janela modal trata as próprias teclas
+    if (modal || xferMenu) return; // a janela modal (ou o menu) trata as próprias teclas
     const ctrl = e.ctrlKey,
       alt = e.altKey,
       shift = e.shiftKey,
@@ -422,6 +452,12 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
       // aba do ssh-copy-id que já terminou: Enter/Esc fecham
       if (k0 === "Enter" || k0 === "Escape") closeTab(activeSession!.key);
       else if (ctrl && (e.code === "BracketRight" || k0 === "]")) setTermFocus(false);
+      else handled = false;
+    } else if (inSession && termFocus && activeSession!.kind === "files") {
+      // o navegador de arquivos trata as próprias teclas; aqui só a volta e a troca de aba
+      if (ctrl && (e.code === "BracketRight" || k0 === "]")) setTermFocus(false);
+      else if (alt && e.key === "ArrowLeft") goToSession((active + sessions.length - 1) % sessions.length);
+      else if (alt && e.key === "ArrowRight") goToSession((active + 1) % sessions.length);
       else handled = false;
     } else if (inSession && termFocus && activeSession!.kind === "rdp") {
       // no RDP quase tudo vai para o Windows; só a volta ao painel e o Alt+P ficam aqui
@@ -462,6 +498,10 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
       else if (k === "d" || k === "Delete") setModal({ kind: "delete", alias: current.alias });
       else if (k === "K") copyId(current);
       else if (k === "r") openTransfer(current);
+      else if (k === "f" && current.kind === "ssh") {
+        setView("host");
+        setXferMenu(true);
+      }
       else if (k === "U") collect(current.alias);
       else handled = false;
     }
@@ -496,7 +536,17 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
   }
 
   const hints: [string, string][] =
-    inSession && termFocus && activeSession!.kind === "rdp"
+    inSession && termFocus && activeSession!.kind === "files"
+      ? [
+          ["Ctrl+]", t("h.panel")],
+          ["Tab", t("files.h_side")],
+          ["F5", t("files.h_copy")],
+          ["F7", t("files.mkdir").toLowerCase()],
+          ["F2", t("files.rename").toLowerCase()],
+          ["Del", t("gui.delete").toLowerCase()],
+          ["Ctrl+H", t("files.h_hidden")],
+        ]
+      : inSession && termFocus && activeSession!.kind === "rdp"
       ? [
           ["Ctrl+]", t("h.panel")],
           ["Alt+P", t("h.type_pw")],
@@ -618,18 +668,20 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
                 const h = hostByAlias(s.alias);
                 const isActive = inSession && i === active;
                 const copyid = s.kind === "copyid";
+                const files = s.kind === "files";
+                const proto = (s.proto ?? "").toUpperCase();
                 return (
                   <div
                     key={s.key}
                     className={`tab${isActive ? " active" : ""}${isActive && termFocus ? " focused" : ""}${s.ended ? " ended" : ""}`}
-                    title={copyid ? `ssh-copy-id ${s.alias}` : `ssh ${s.alias}`}
+                    title={copyid ? `ssh-copy-id ${s.alias}` : files ? `${proto} ${s.alias}` : `ssh ${s.alias}`}
                     onMouseDown={() => goToSession(i)}
                   >
                     <span className={`nf${copyid ? " copyid" : ""}${s.connecting ? " wait" : ""}`}>
-                      {copyid ? ICON.key : h?.kind === "rdp" ? RDP_ICON : SSH_ICON}
+                      {copyid ? ICON.key : files ? ICON.folder : h?.kind === "rdp" ? RDP_ICON : SSH_ICON}
                     </span>
                     <span className="label">
-                      {copyid ? `ssh-copy-id ${s.alias}` : s.alias}
+                      {copyid ? `ssh-copy-id ${s.alias}` : files ? `${s.alias} · ${proto}` : s.alias}
                     </span>
                     <button
                       className="icon-btn close"
@@ -666,7 +718,25 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
             {/* os terminais ficam montados mesmo escondidos, para as sessões não caírem */}
             <div className="term-area" style={{ display: inSession ? "block" : "none" }}>
               {sessions.map((s, i) =>
-                s.kind === "rdp" ? (
+                s.kind === "files" ? (
+                  <FilesTab
+                    key={s.key}
+                    alias={s.alias}
+                    proto={s.proto!}
+                    visible={inSession && i === active}
+                    focused={termFocus && !modal}
+                    onStatus={setStatus}
+                    onReady={() => {
+                      setSessions((ss) => ss.map((x) => (x.key === s.key ? { ...x, connecting: false } : x)));
+                      setStatus(t("files.connected", { proto: s.proto!.toUpperCase(), alias: s.alias }));
+                    }}
+                    onFail={(err) => {
+                      setSessions((ss) => ss.filter((x) => x.key !== s.key));
+                      setStatus(t("files.open_failed", { proto: s.proto!.toUpperCase(), alias: s.alias, err }));
+                    }}
+                    onClick={() => setTermFocus(true)}
+                  />
+                ) : s.kind === "rdp" ? (
                   <RdpTab
                     key={s.key}
                     ref={(h) => {
@@ -695,13 +765,13 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
                   />
                 ),
               )}
-              {inSession && activeSession.connecting && (
+              {inSession && activeSession.connecting && activeSession.kind === "rdp" && (
                 <div className="rdp-wait">
                   <span className="nf spin">{ICON.spinner}</span> {t("info.connecting")}
                 </div>
               )}
             </div>
-            {inSession && showPanel && panelHost && activeSession.kind !== "copyid" && (
+            {inSession && showPanel && panelHost && (activeSession.kind === "ssh" || activeSession.kind === "rdp") && (
               <SessionPanel
                 h={panelHost}
                 session={activeSession}
@@ -721,7 +791,9 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
                   onDisconnect={() => closeSession(current.alias)}
                   onCopy={() => copy(current)}
                   onCopyId={() => copyId(current)}
-                  onTransfer={() => openTransfer(current)}
+                  xferMenu={xferMenu}
+                  onXferMenu={setXferMenu}
+                  onPickTransfer={(c) => pickTransfer(current, c)}
                   onCollect={() => collect(current.alias)}
                   onEdit={() => setModal({ kind: "form", editing: current.alias })}
                   onDelete={() => setModal({ kind: "delete", alias: current.alias })}
@@ -1027,7 +1099,9 @@ function HostDetail({
   onDisconnect,
   onCopy,
   onCopyId,
-  onTransfer,
+  xferMenu,
+  onXferMenu,
+  onPickTransfer,
   onCollect,
   onEdit,
   onDelete,
@@ -1040,7 +1114,9 @@ function HostDetail({
   onDisconnect: () => void;
   onCopy: () => void;
   onCopyId: () => void;
-  onTransfer: () => void;
+  xferMenu: boolean;
+  onXferMenu: (open: boolean) => void;
+  onPickTransfer: (c: "rsync" | FileProto) => void;
   onCollect: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -1092,9 +1168,14 @@ function HostDetail({
               <button className="btn" title="ssh-copy-id (K)" onClick={onCopyId}>
                 <span className="nf">{ICON.key}</span> ssh-copy-id
               </button>
-              <button className="btn" title="rsync (r)" disabled={!!transfer} onClick={onTransfer}>
-                <span className="nf">{ICON.transfer}</span> rsync
-              </button>
+              <TransferMenu
+                alias={h.alias}
+                open={xferMenu}
+                rsyncBusy={!!transfer}
+                onOpen={() => onXferMenu(true)}
+                onClose={() => onXferMenu(false)}
+                onPick={onPickTransfer}
+              />
               <button
                 className="btn"
                 title={`${t("gui.collect")} (Shift+U)`}

@@ -120,6 +120,8 @@ const EMPTY: HostForm = {
   domain: "",
   resolution: "",
   gateway: "",
+  sftpPort: "",
+  ftpPort: "",
 };
 
 const defaultPort = (kind: HostForm["kind"]) => (kind === "Ssh" ? "22" : "3389");
@@ -244,6 +246,12 @@ export function HostFormModal({
           placeholder: t("gui.port_default", { port: defaultPort(form.kind) }),
         })}
         {ssh && field(t("field.identity"), "identityFile", { mono: true, placeholder: hint })}
+        {ssh &&
+          field(t("field.sftp_port"), "sftpPort", {
+            mono: true,
+            placeholder: t("gui.ph_sftp_port", { port: form.port.trim() || "22" }),
+          })}
+        {ssh && field(t("field.ftp_port"), "ftpPort", { mono: true, placeholder: t("gui.ph_ftp_port") })}
         {!ssh && field(t("field.resolution"), "resolution", { placeholder: t("gui.ph_resolution") })}
         {!ssh &&
           field(t("field.gateway"), "gateway", { placeholder: t("ph.gateway"), list: "gateways" })}
@@ -668,6 +676,7 @@ export function HelpModal({ update, onClose }: { update: UpdateStatus | null; on
     ["x", t("gui.help_x")],
     ["K", t("help.k")],
     ["r", t("help.r")],
+    ["f", t("files.help_f")],
     ["c", t("help.c")],
     ["a", t("help.a")],
     ["e", t("help.e")],

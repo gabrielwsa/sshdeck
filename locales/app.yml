@@ -999,3 +999,220 @@ gui.help_x:
   pt: "fecha a sessão (SSH ou RDP) do host"
   en: "closes the host's session (SSH or RDP)"
   es: "cierra la sesión (SSH o RDP) del host"
+# --- navegador de arquivos (SFTP/FTP) ---
+field.sftp_port:
+  pt: "Porta SFTP"
+  en: "SFTP port"
+  es: "Puerto SFTP"
+field.ftp_port:
+  pt: "Porta FTP"
+  en: "FTP port"
+  es: "Puerto FTP"
+gui.ph_sftp_port:
+  pt: "vazio = a mesma do SSH (%{port})"
+  en: "empty = same as SSH (%{port})"
+  es: "vacío = el mismo del SSH (%{port})"
+gui.ph_ftp_port:
+  pt: "vazio = 21"
+  en: "empty = 21"
+  es: "vacío = 21"
+files.transfer:
+  pt: "Transferir"
+  en: "Transfer"
+  es: "Transferir"
+files.rsync_note:
+  pt: "popup com autocomplete"
+  en: "popup with autocomplete"
+  es: "popup con autocompletado"
+files.rsync_busy:
+  pt: "já tem um rsync rodando"
+  en: "an rsync is already running"
+  es: "ya hay un rsync en curso"
+files.probing:
+  pt: "verificando…"
+  en: "checking…"
+  es: "verificando…"
+files.port_ok:
+  pt: "porta %{port}"
+  en: "port %{port}"
+  es: "puerto %{port}"
+files.port_closed:
+  pt: "sem resposta na porta %{port}"
+  en: "no answer on port %{port}"
+  es: "sin respuesta en el puerto %{port}"
+files.port_hint:
+  pt: "Outra porta? Mude em Editar (Porta SFTP / Porta FTP)."
+  en: "Another port? Change it in Edit (SFTP port / FTP port)."
+  es: "¿Otro puerto? Cámbialo en Editar (Puerto SFTP / Puerto FTP)."
+files.opening:
+  pt: "Abrindo %{proto} em %{alias}…"
+  en: "Opening %{proto} on %{alias}…"
+  es: "Abriendo %{proto} en %{alias}…"
+files.connected:
+  pt: "%{proto} conectado em %{alias}"
+  en: "%{proto} connected to %{alias}"
+  es: "%{proto} conectado a %{alias}"
+files.open_failed:
+  pt: "%{proto} em %{alias} não abriu: %{err}"
+  en: "%{proto} on %{alias} did not open: %{err}"
+  es: "%{proto} en %{alias} no abrió: %{err}"
+files.timeout:
+  pt: "o servidor não respondeu a tempo"
+  en: "the server did not answer in time"
+  es: "el servidor no respondió a tiempo"
+files.ftp_login:
+  pt: "login no FTP recusado: %{err}"
+  en: "FTP login refused: %{err}"
+  es: "inicio de sesión FTP rechazado: %{err}"
+files.closed:
+  pt: "a conexão desta aba já foi fechada"
+  en: "this tab's connection is already closed"
+  es: "la conexión de esta pestaña ya se cerró"
+files.local:
+  pt: "Este computador"
+  en: "This computer"
+  es: "Este equipo"
+files.up:
+  pt: "Pasta de cima"
+  en: "Parent folder"
+  es: "Carpeta superior"
+files.refresh:
+  pt: "Atualizar"
+  en: "Refresh"
+  es: "Actualizar"
+files.mkdir:
+  pt: "Nova pasta"
+  en: "New folder"
+  es: "Nueva carpeta"
+files.rename:
+  pt: "Renomear"
+  en: "Rename"
+  es: "Renombrar"
+files.delete:
+  pt: "Apagar"
+  en: "Delete"
+  es: "Eliminar"
+files.delete_q:
+  pt: "Apagar %{what} em %{where}? Pastas são apagadas com tudo dentro. Não dá para desfazer."
+  en: "Delete %{what} on %{where}? Folders are deleted with everything inside. This cannot be undone."
+  es: "¿Eliminar %{what} en %{where}? Las carpetas se eliminan con todo su contenido. No se puede deshacer."
+files.overwrite:
+  pt: "Substituir arquivos"
+  en: "Replace files"
+  es: "Reemplazar archivos"
+files.overwrite_q:
+  pt: "Já existe no destino: %{list}. Substituir?"
+  en: "Already in the destination: %{list}. Replace?"
+  es: "Ya existe en el destino: %{list}. ¿Reemplazar?"
+files.replace:
+  pt: "Substituir"
+  en: "Replace"
+  es: "Reemplazar"
+files.name:
+  pt: "Nome"
+  en: "Name"
+  es: "Nombre"
+files.size:
+  pt: "Tamanho"
+  en: "Size"
+  es: "Tamaño"
+files.modified:
+  pt: "Modificado"
+  en: "Modified"
+  es: "Modificado"
+files.empty:
+  pt: "Pasta vazia"
+  en: "Empty folder"
+  es: "Carpeta vacía"
+files.count:
+  pt: "%{n} itens"
+  en: "%{n} items"
+  es: "%{n} elementos"
+files.selected:
+  pt: "%{n} selecionados"
+  en: "%{n} selected"
+  es: "%{n} seleccionados"
+files.n_items:
+  pt: "%{n} itens"
+  en: "%{n} items"
+  es: "%{n} elementos"
+files.upload:
+  pt: "Enviar para o servidor"
+  en: "Upload to the server"
+  es: "Enviar al servidor"
+files.download:
+  pt: "Baixar para o computador"
+  en: "Download to this computer"
+  es: "Descargar al equipo"
+files.uploaded:
+  pt: "Enviado: %{name}"
+  en: "Uploaded: %{name}"
+  es: "Enviado: %{name}"
+files.downloaded:
+  pt: "Baixado: %{name}"
+  en: "Downloaded: %{name}"
+  es: "Descargado: %{name}"
+files.copy_failed:
+  pt: "Cópia de %{name} falhou: %{err}"
+  en: "Copying %{name} failed: %{err}"
+  es: "La copia de %{name} falló: %{err}"
+files.copy_cancelled:
+  pt: "Cópia de %{name} cancelada"
+  en: "Copy of %{name} cancelled"
+  es: "Copia de %{name} cancelada"
+files.op_failed:
+  pt: "Não deu: %{err}"
+  en: "Failed: %{err}"
+  es: "No se pudo: %{err}"
+files.cancel:
+  pt: "Cancelar cópia"
+  en: "Cancel copy"
+  es: "Cancelar copia"
+files.cancelled:
+  pt: "cancelada"
+  en: "cancelled"
+  es: "cancelada"
+files.done:
+  pt: "concluída"
+  en: "done"
+  es: "completada"
+files.h_side:
+  pt: "troca de coluna"
+  en: "switch column"
+  es: "cambia de columna"
+files.h_copy:
+  pt: "copia"
+  en: "copy"
+  es: "copia"
+files.h_hidden:
+  pt: "ocultos"
+  en: "hidden"
+  es: "ocultos"
+files.filter:
+  pt: "Filtrar por nome"
+  en: "Filter by name"
+  es: "Filtrar por nombre"
+files.more:
+  pt: "Carregar mais %{n} (faltam %{left})"
+  en: "Load %{n} more (%{left} left)"
+  es: "Cargar %{n} más (faltan %{left})"
+files.count_of:
+  pt: "%{n} de %{total} itens"
+  en: "%{n} of %{total} items"
+  es: "%{n} de %{total} elementos"
+files.limit:
+  pt: "mostrar"
+  en: "show"
+  es: "mostrar"
+files.limit_hint:
+  pt: "Quantos itens carregar por vez. Pastas grandes ficam leves; o filtro procura em todos."
+  en: "How many items to load at a time. Large folders stay light; the filter searches all of them."
+  es: "Cuántos elementos cargar por vez. Las carpetas grandes quedan livianas; el filtro busca en todos."
+files.all:
+  pt: "todos"
+  en: "all"
+  es: "todos"
+files.help_f:
+  pt: "transferir: rsync, SFTP ou FTP (navegador de arquivos)"
+  en: "transfer: rsync, SFTP or FTP (file browser)"
+  es: "transferir: rsync, SFTP o FTP (explorador de archivos)"

@@ -2,6 +2,7 @@
 //! Cofre, ssh config e o resto vêm do `sshdeck-core`.
 
 mod clip;
+mod files;
 mod pty;
 mod rdpview;
 mod update;
@@ -718,6 +719,7 @@ fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
         .manage(update::Updater::new())
+        .manage(files::FilesState::default())
         .setup(|app| {
             update::start(app.handle().clone());
             Ok(())
@@ -758,6 +760,16 @@ fn main() {
             ls_close,
             ls_suggest,
             tick,
+            files::files_probe,
+            files::files_open,
+            files::files_close,
+            files::files_list,
+            files::files_existing,
+            files::files_mkdir,
+            files::files_rename,
+            files::files_remove,
+            files::files_copy,
+            files::files_cancel,
             update::update_status,
             update::update_check,
             update::update_download,

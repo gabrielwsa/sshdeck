@@ -30,6 +30,17 @@ export const ICON = {
   language: "\uf1ab",
   import: "\uf0ed",
   spinner: "\uf110",
+  folder: "\uf07b",
+  folderPlus: "\u{f0257}",
+  file: "\uf15b",
+  link: "\uf0c1",
+  up: "\uf062",
+  left: "\uf060",
+  right: "\uf061",
+  chevronDown: "\uf078",
+  server: "\uf233",
+  laptop: "\uf109",
+  globe: "\uf0ac",
 };
 
 /** Coluna "Extra": chave do SSH ou domínio/túnel do RDP. */

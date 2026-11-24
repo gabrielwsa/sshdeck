@@ -202,24 +202,18 @@ async fn run(
             .ok_or_else(|| anyhow!("{}: endereço não encontrado", host.hostname))?,
     };
 
-    let stream = tokio::time::timeout(Duration::from_secs(15), TcpStream::connect(target))
-        .await
-        .map_err(|_| anyhow!("{}:{} não respondeu", host.hostname, host.port))??;
-    stream.set_nodelay(true)?;
-    let client_addr = stream.local_addr()?;
-
-    let config = connector_config(&host, width, height);
-    let drdynvc = ironrdp_dvc::DrdynvcClient::new()
-        .with_dynamic_channel(DisplayControlClient::new(|_| Ok(Vec::new())));
-    let mut connector =
-        ironrdp_connector::ClientConnector::new(config, client_addr).with_static_channel(drdynvc);
-
-    let mut framed = TokioFramed::new(stream);
-    let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
-    let (stream, leftover) = framed.into_inner();
-    let (tls, cert) = ironrdp_tls::upgrade(stream, &host.hostname)
-        .await
-        .context("TLS")?;
+    // TLS moderno (rustls, TLS 1.2+); se o servidor derrubar, de novo com o OpenSSL liberando
+    // TLS 1.0/1.1 e cifras antigas (Windows 7/2008 R2 sem atualização, xrdp antigos), como o FreeRDP
+    let (connector, upgraded, mut framed, cert) =
+        match handshake(&host, width, height, target, false).await {
+            Ok(h) => h,
+            Err(modern) => {
+                eprintln!("rdp {}: TLS moderno falhou ({modern:#}), tentando TLS antigo", host.alias);
+                handshake(&host, width, height, target, true)
+                    .await
+                    .map_err(|legacy| anyhow!("{modern:#} · TLS antigo: {legacy:#}"))?
+            }
+        };
 
     // a senha só sai depois daqui (CredSSP): o certificado precisa ser o mesmo de antes
     let der = x509_cert::der::Encode::to_der(&cert).context("certificado")?;
@@ -233,8 +227,6 @@ async fn run(
         return Ok(());
     }
 
-    let upgraded = ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector);
-    let mut framed = TokioFramed::new_with_leftover(tls, leftover);
     let public_key = ironrdp_tls::extract_tls_server_public_key(&cert)
         .ok_or_else(|| anyhow!("certificado sem chave pública"))?
         .to_owned();
@@ -251,6 +243,81 @@ async fn run(
     .map_err(|e| anyhow!("{}", describe_connect_error(&e)))?;
     let _ = out.events.send(Event::Connected);
     session(framed, result, &mut rx, out).await
+}
+
+/// Conexão TLS de qualquer um dos dois lados (rustls ou OpenSSL).
+trait Io: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + Sync {}
+impl<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + Sync> Io for T {}
+type Stream = Box<dyn Io>;
+
+/// TCP, negociação do RDP e TLS. `legacy`: OpenSSL aceitando TLS antigo no lugar do rustls.
+async fn handshake(
+    host: &Host,
+    width: u16,
+    height: u16,
+    target: SocketAddr,
+    legacy: bool,
+) -> Result<(
+    ironrdp_connector::ClientConnector,
+    ironrdp_tokio::Upgraded,
+    TokioFramed<Stream>,
+    x509_cert::Certificate,
+)> {
+    let stream = tokio::time::timeout(Duration::from_secs(15), TcpStream::connect(target))
+        .await
+        .map_err(|_| anyhow!("{}:{} não respondeu", host.hostname, host.port))??;
+    stream.set_nodelay(true)?;
+    let client_addr = stream.local_addr()?;
+
+    let config = connector_config(host, width, height);
+    let drdynvc = ironrdp_dvc::DrdynvcClient::new()
+        .with_dynamic_channel(DisplayControlClient::new(|_| Ok(Vec::new())));
+    let mut connector =
+        ironrdp_connector::ClientConnector::new(config, client_addr).with_static_channel(drdynvc);
+
+    let mut framed = TokioFramed::new(stream);
+    let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
+    let (stream, leftover) = framed.into_inner();
+    let (tls, cert): (Stream, _) = if legacy {
+        let (tls, der) = upgrade_legacy(stream).await.context("TLS")?;
+        let cert = x509_cert::der::Decode::from_der(&der).context("certificado")?;
+        (Box::new(tls), cert)
+    } else {
+        let (tls, cert) = ironrdp_tls::upgrade(stream, &host.hostname)
+            .await
+            .context("TLS")?;
+        (Box::new(tls), cert)
+    };
+    let upgraded = ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector);
+    Ok((connector, upgraded, TokioFramed::new_with_leftover(tls, leftover), cert))
+}
+
+/// TLS pelo OpenSSL com tudo liberado (TLS 1.0+, cifras antigas, nível de segurança 0), como o
+/// FreeRDP faz. O certificado não é validado aqui: quem decide é a impressão digital guardada no
+/// cofre, antes de a senha sair.
+async fn upgrade_legacy(stream: TcpStream) -> Result<(tokio_openssl::SslStream<TcpStream>, Vec<u8>)> {
+    use openssl::ssl::{SslConnector, SslMethod, SslOptions, SslVerifyMode, SslVersion};
+    let mut b = SslConnector::builder(SslMethod::tls_client())?;
+    b.set_verify(SslVerifyMode::NONE);
+    b.set_security_level(0);
+    b.set_min_proto_version(Some(SslVersion::TLS1))?;
+    b.set_cipher_list("ALL:@SECLEVEL=0")?;
+    // o CredSSP não aceita retomada de sessão TLS
+    b.set_options(SslOptions::NO_TICKET);
+    let ssl = b
+        .build()
+        .configure()?
+        .verify_hostname(false)
+        .use_server_name_indication(false)
+        .into_ssl("rdp")?;
+    let mut tls = tokio_openssl::SslStream::new(ssl, stream)?;
+    std::pin::Pin::new(&mut tls).connect().await?;
+    let der = tls
+        .ssl()
+        .peer_certificate()
+        .ok_or_else(|| anyhow!("servidor sem certificado"))?
+        .to_der()?;
+    Ok((tls, der))
 }
 
 /// Espera a ponta local do túnel aceitar conexões (ou o ssh desistir).

@@ -16,8 +16,9 @@ Baixe da [página de releases](../../releases/latest) o arquivo do seu sistema:
 | Fedora, openSUSE… | `sshdeck-X-1.x86_64.rpm` | `sudo dnf install ./sshdeck-*.rpm` |
 | Qualquer distro | `sshdeck_X_amd64.AppImage` | `chmod +x` e abrir |
 
-Os pacotes instalam o `sshdeck-gui`, com atalho no menu. Os ícones usam
-[Nerd Fonts](https://www.nerdfonts.com/) (o terminal usa JetBrainsMono Nerd Font, se instalada).
+Os pacotes instalam o `sshdeck-gui`, com atalho no menu. A fonte do terminal e dos ícones
+([JetBrainsMono Nerd Font](https://www.nerdfonts.com/), licença OFL 1.1 em
+`gui/src/assets/fonts/OFL.txt`) vai dentro do app: não precisa instalar nada.
 
 ## Atualizações
 
@@ -62,6 +63,24 @@ direita (`Alt+I`). Tudo tem botão e atalho de teclado (`?` mostra a lista).
 - **rsync** (`r`): baixa ou envia arquivos em segundo plano, com autocomplete dos caminhos (no
   servidor e no local) e progresso na barra lateral. Roda `rsync -azh --partial`: se a conexão
   cair, rodar de novo continua de onde parou. O servidor precisa ter `rsync`.
+
+### Arquivos (SFTP e FTP)
+- O botão **Transferir** (`f`) abre um menu com **rsync** (o popup), **SFTP** e **FTP**. Ao abrir,
+  o app testa as portas e desabilita o que não responde. Portas diferentes do padrão (SFTP = a do
+  SSH, FTP = 21) ficam em **Porta SFTP** / **Porta FTP** no cadastro do host.
+- SFTP e FTP abrem um **navegador de arquivos em aba**, em duas colunas: este computador à esquerda
+  e o servidor à direita. Usa o user e a senha salvos do host; o SFTP passa pelo `ssh` do sistema
+  (valem o `~/.ssh/config`, as chaves e o known_hosts).
+- Copiar: arrastar entre as colunas, duplo clique num arquivo, os botões do meio ou `F5`. Pastas vão
+  inteiras, com progresso embaixo e botão de cancelar; antes de sobrescrever, o app pergunta.
+- `Enter` abre a pasta, `Backspace` sobe, `Tab` troca de coluna, `Espaço`/`Ctrl+clique` seleciona
+  vários, `F7` nova pasta, `F2` renomeia, `Del` apaga (pastas com tudo dentro, depois de
+  confirmar), `Ctrl+H` mostra os ocultos, `Ctrl+L` digita o caminho, `Ctrl+R` atualiza.
+- **Pastas grandes:** cada coluna carrega no máximo 500 itens por vez (pastas primeiro), com
+  **Carregar mais** no fim; o limite (200, 500, 1000 ou todos) fica no rodapé e é salvo. O filtro
+  por nome (`Ctrl+F`) procura na pasta inteira, não só no que já foi carregado.
+- O FTP não tem criptografia (o protocolo não tem); a conexão da aba se refaz sozinha se o
+  servidor derrubar por inatividade.
 
 ### RDP (Windows)
 - A área de trabalho abre numa aba, desenhada pelo próprio app (IronRDP); não precisa de

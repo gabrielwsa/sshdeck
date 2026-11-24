@@ -1,3 +1,19 @@
+/* JetBrains Mono Nerd Font (OFL 1.1, assets/fonts/OFL.txt), embutida no app */
+@font-face {
+  font-family: "sshdeck mono";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "sshdeck mono";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
 /* App escuro no estilo Termius / VS Code: barra lateral de hosts, área principal com abas de
    terminal e um painel de informações recolhível à direita. */
 :root {
@@ -18,7 +34,8 @@
   --yellow: #e5b44a;
   --red: #e5534b;
   --blue: #4aa8e8;
-  --mono: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", monospace;
+  /* a fonte vai dentro do app (assets/fonts): os ícones aparecem mesmo sem Nerd Font instalada */
+  --mono: "sshdeck mono", "JetBrainsMono Nerd Font", "JetBrainsMono NF", monospace;
   --sans: "Noto Sans", "Cantarell", "Segoe UI", sans-serif;
   --radius: 6px;
   font-family: var(--sans);
@@ -543,3 +560,152 @@ textarea.input { height: auto; padding: 7px 10px; resize: vertical; line-height:
 .upd-pill.ready:hover { filter: brightness(1.1); }
 .upd-pill.bad { color: #fff; background: color-mix(in srgb, var(--red) 80%, transparent); }
 .upd-pill.busy { cursor: default; color: var(--muted); background: var(--bg-elev); }
+
+/* --- menu "Transferir" (rsync / SFTP / FTP) --- */
+.dropdown { position: relative; display: inline-flex; }
+.dropdown .caret { font-size: 9px; opacity: 0.7; }
+.btn.on { border-color: var(--accent); }
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 330px;
+  padding: 4px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  outline: none;
+}
+.menu-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 22px 54px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-item .label { font-weight: 600; }
+.menu-item .note { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu-item.cursor:not(:disabled) { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.menu-item:disabled { cursor: default; opacity: 0.45; }
+.menu-foot { padding: 6px 10px 4px; font-size: 11.5px; color: var(--faint); border-top: 1px solid var(--border); margin-top: 4px; }
+
+/* --- navegador de arquivos (aba) --- */
+.files-tab { position: absolute; inset: 8px 4px 4px 12px; flex-direction: column; gap: 8px; min-height: 0; }
+.fpanes { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr); gap: 6px; }
+.fmiddle { display: flex; flex-direction: column; justify-content: center; gap: 8px; align-items: center; }
+.fpane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-side);
+  overflow: hidden;
+}
+.fpane.active { border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); }
+.fhead { padding: 8px 8px 6px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--border); }
+.ftitle { font-size: 12px; font-weight: 600; color: var(--muted); }
+.fpane.active .ftitle .nf { color: var(--accent); }
+.fpath { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.fpath .path {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: var(--bg);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+  cursor: text;
+}
+.fpath .input { flex: 1; min-width: 0; height: 26px; font-size: 12px; }
+.fcols, .frow { display: grid; grid-template-columns: minmax(0, 1fr) 80px 128px; gap: 10px; align-items: center; }
+.fcols { padding: 4px 10px 4px 34px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--faint); border-bottom: 1px solid var(--border); }
+.fcols .num, .frow .num { text-align: right; }
+.flist { flex: 1; min-height: 0; overflow-y: auto; outline: none; padding: 2px 0; }
+.frow {
+  grid-template-columns: 16px minmax(0, 1fr) 80px 128px;
+  padding: 3px 10px;
+  font-size: 12.5px;
+  cursor: default;
+  user-select: none;
+}
+.frow:hover { background: color-mix(in srgb, var(--fg) 5%, transparent); }
+.frow.sel { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.flist:focus .frow.cursor { box-shadow: inset 0 0 0 1px var(--accent); }
+.frow .fname, .fjob .fname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.frow .faint { font-size: 11.5px; white-space: nowrap; }
+.ficon { color: var(--muted); }
+.ficon.dir { color: var(--yellow); }
+.fmsg { padding: 18px; text-align: center; color: var(--muted); font-size: 12.5px; }
+.fmsg.red { color: var(--red); white-space: pre-wrap; text-align: left; }
+.ffoot { padding: 4px 10px; font-size: 11.5px; border-top: 1px solid var(--border); display: flex; gap: 6px; align-items: center; }
+.fjobs { flex: none; display: flex; flex-direction: column; gap: 4px; max-height: 140px; overflow-y: auto; }
+.fjob {
+  display: grid;
+  grid-template-columns: 18px minmax(80px, 220px) 1fr 24px;
+  grid-template-rows: auto 4px;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-side);
+  font-size: 12px;
+}
+.fjob .nums { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fjob .bar { grid-column: 1 / 4; height: 4px; background: var(--bg-elev); border-radius: 2px; overflow: hidden; }
+.fjob .bar > div { height: 100%; background: var(--accent); transition: width 0.3s; }
+.fjob.bad { border-color: color-mix(in srgb, var(--red) 60%, var(--border)); }
+.fjob.bad .nums { color: var(--red); }
+
+.ffilter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: var(--bg);
+  border: 1px solid transparent;
+}
+.ffilter:focus-within { border-color: var(--accent); }
+.ffilter .nf { color: var(--faint); font-size: 11px; }
+.ffilter input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: var(--fg); font: inherit; font-size: 12px; }
+.ffilter input::placeholder { color: var(--faint); }
+.ffilter kbd { font-size: 10px; }
+.fmore {
+  display: block;
+  margin: 6px auto 8px;
+  padding: 5px 14px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+.fmore:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ffoot .spacer { flex: 1; }
+.flimit { display: inline-flex; align-items: center; gap: 6px; }
+.flimit select {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 11.5px;
+  padding: 1px 4px;
+}
+.frow .flink { margin-left: 6px; font-size: 10px; }

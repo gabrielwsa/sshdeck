@@ -1,6 +1,6 @@
 [package]
 name = "sshdeck-core"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 
 # Lógica sem interface: cofre, ssh config, rsync, túnel do RDP, askpass e idioma.

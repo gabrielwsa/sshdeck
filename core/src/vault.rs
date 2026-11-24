@@ -39,12 +39,9 @@ pub struct Host {
     // --- só RDP ---
     #[serde(default)]
     pub domain: String,
-    /// vazio = janela redimensionável; "full", "1920x1080" ou "90%"
+    /// vazio = acompanha o tamanho da aba; "1920x1080" = fixa
     #[serde(default)]
     pub resolution: String,
-    /// pasta local compartilhada com o Windows
-    #[serde(default)]
-    pub share: String,
     /// alias de um host SSH para abrir túnel até o RDP
     #[serde(default)]
     pub gateway: String,
@@ -61,6 +58,10 @@ pub struct Host {
     pub sysinfo_allowed: Option<bool>,
     #[serde(default)]
     pub sysinfo: Option<crate::sysinfo::SysInfo>,
+    /// SHA-256 do certificado do servidor RDP aceito na 1ª conexão do app gráfico
+    /// (vazio = ainda não conectou); se mudar, o app pergunta antes de mandar a senha
+    #[serde(default)]
+    pub rdp_cert: String,
 }
 
 pub fn now() -> u64 {

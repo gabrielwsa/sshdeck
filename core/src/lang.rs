@@ -32,6 +32,11 @@ pub fn set(code: &str) {
     rust_i18n::set_locale(code);
 }
 
+/// Tradução por chave em tempo de execução (o app gráfico pede as chaves que usa).
+pub fn tr(key: &str) -> String {
+    rust_i18n::t!(key).into_owned()
+}
+
 pub fn current() -> String {
     rust_i18n::locale().to_string()
 }

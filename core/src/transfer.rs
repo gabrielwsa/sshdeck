@@ -104,7 +104,7 @@ impl Transfer {
             .env("SSH_ASKPASS_REQUIRE", "force")
             .env("SSH_ASKPASS", std::env::current_exe()?)
             .env(askpass::NO_TTY_ENV, "1")
-            // sempre definida: sem ela, o sshdeck chamado como askpass abriria a TUI
+            // sempre definida: sem ela, o sshdeck chamado como askpass abriria a janela
             .env(askpass::PASSWORD_ENV, &host.password)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())

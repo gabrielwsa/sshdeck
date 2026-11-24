@@ -1,198 +1,146 @@
 # sshdeck
 
-Gestor de SSH e RDP no terminal (Rust + ratatui): cadastra hosts (alias, IP, user, porta, chave),
-gera o `~/.ssh/config` e guarda as senhas criptografadas para usar no servidor (`sudo su` etc.).
-Hosts Windows abrem por RDP (FreeRDP), com a senha preenchida e túnel SSH opcional.
+Gerenciador de conexões SSH e RDP para Linux (Tauri + React, com o motor em Rust): cadastra hosts
+(alias, IP, user, porta, chave), gera o `~/.ssh/config` e guarda as senhas num cofre criptografado
+para usar no servidor (`sudo su` etc.). SSH e área de trabalho do Windows (RDP) abrem em abas,
+dentro do app.
 
 ## Instalar
 
-```sh
-cargo install --path .
-sshdeck
-```
+Baixe da [página de releases](../../releases/latest) o arquivo do seu sistema:
 
-Use uma [Nerd Font](https://www.nerdfonts.com/) no terminal: o ícone  (`nf-fa-lock`) marca os
-hosts com senha salva,  (`nf-fa-terminal`) os hosts SSH e  (`nf-fa-windows`) os RDP.
+| Sistema | Arquivo | Instalar |
+|---|---|---|
+| Arch | `sshdeck-X-1-x86_64.pkg.tar.zst` | `sudo pacman -U sshdeck-*.pkg.tar.zst` |
+| Debian, Ubuntu, Mint… | `sshdeck_X_amd64.deb` | `sudo apt install ./sshdeck_*.deb` |
+| Fedora, openSUSE… | `sshdeck-X-1.x86_64.rpm` | `sudo dnf install ./sshdeck-*.rpm` |
+| Qualquer distro | `sshdeck_X_amd64.AppImage` | `chmod +x` e abrir |
 
-Para RDP, instale o FreeRDP 3 (`pacman -S freerdp`).
+Os pacotes instalam o `sshdeck-gui`, com atalho no menu. Os ícones usam
+[Nerd Fonts](https://www.nerdfonts.com/) (o terminal usa JetBrainsMono Nerd Font, se instalada).
+
+## Atualizações
+
+O app procura uma versão nova ao abrir e a cada 4 horas; quando sai uma, aparece um aviso na barra
+de status (`Atualizar para X` → `Baixando… N%` → `Reiniciar e atualizar`):
+
+- **AppImage:** baixa, troca o arquivo e abre de novo, sem pedir senha;
+- **pacote (pacman, apt, dnf, zypper):** baixa e instala com `pkexec`, que pede a senha do
+  sistema, e abre de novo;
+- **compilado à mão:** só avisa e abre a página do release.
+
+Antes de instalar, o arquivo baixado é conferido com o `SHA256SUMS` do release. Com sessões
+abertas, o app pergunta antes de reiniciar. `?` mostra a versão instalada e tem o botão
+**Buscar atualizações**.
+
+## Funcionalidades
+
+Visual escuro (estilo Termius / VS Code): hosts na barra lateral (redimensionável) com busca,
+detalhes do host selecionado no centro, sessões em abas e um painel de informações recolhível à
+direita (`Alt+I`). Tudo tem botão e atalho de teclado (`?` mostra a lista).
+
+### Hosts
+- Cadastrar, editar e apagar (`a`, `e`, `d`): Alias, HostName/IP, User, Port, IdentityFile,
+  Password e Notas. `Ctrl+S` salva.
+- Validação: alias sem espaços e sem `* ? ! #`, sem aliases repetidos, porta numérica.
+- No IdentityFile vazio, um texto cinza mostra qual chave será usada.
+- Importar do `~/.ssh/config` (`i`): lê Host, HostName, User, Port e IdentityFile, ignora curingas
+  e blocos `Match`, e pula aliases que já existem.
+- Buscar por alias, user ou IP (`/`).
+- Trocar a senha mestra (`P`) e o idioma (`L`).
+
+### SSH
+- `Enter` abre o ssh numa aba (xterm.js). Várias sessões ao mesmo tempo: `Alt+←/→` troca,
+  `x` fecha a do host selecionado, `Ctrl+]` volta para a lista com a sessão rodando.
+- `Alt+P` **digita a senha salva** na sessão, sem passar pelo clipboard. Ideal para `sudo su`.
+- `c` copia a senha; ela some do clipboard depois de 45 s.
+- **Informações do servidor** (`Shift+U`): uma segunda conexão rápida lê `/etc/os-release`,
+  `uname`, `nproc` e `/proc/meminfo`. O resultado fica no cofre. Só coleta quando você pede; na
+  1ª conexão a um host, o app pergunta se pode.
+- **ssh-copy-id** (`K`) numa aba, com a senha salva preenchida. Sem IdentityFile, quem escolhe a
+  chave é o `ssh-copy-id`: as do ssh-agent, se houver; senão a `~/.ssh/id*.pub` mais recente.
+- **rsync** (`r`): baixa ou envia arquivos em segundo plano, com autocomplete dos caminhos (no
+  servidor e no local) e progresso na barra lateral. Roda `rsync -azh --partial`: se a conexão
+  cair, rodar de novo continua de onde parou. O servidor precisa ter `rsync`.
+
+### RDP (Windows)
+- A área de trabalho abre numa aba, desenhada pelo próprio app (IronRDP); não precisa de
+  FreeRDP. Mouse, roda, teclado (pelas teclas físicas, no layout configurado no Windows) e
+  `Alt+P` para digitar a senha.
+- Login por NLA (CredSSP): a senha só sai depois de conferir o certificado do Windows.
+- **Certificado:** a impressão digital é guardada no cofre na 1ª conexão. Se mudar (o Windows
+  renova o dele a cada ~6 meses), o app mostra a nova e pergunta se você confia, antes de enviar
+  a senha.
+- **Resolução:** vazio = acompanha o tamanho da aba (o Windows se ajusta ao redimensionar);
+  `1920x1080` = fixa.
+- **Túnel SSH via `<alias>`:** para Windows acessível só passando por um servidor Linux. O app
+  abre `ssh -N -L` por esse host (com a senha dele) e conecta o RDP através do túnel.
+- Se a tela vier com defeito num servidor, `SSHDECK_RDP_CODECS=remotefx:off` desliga a
+  compressão RemoteFX.
 
 ## Idiomas
 
-A interface está em **português, inglês e espanhol**. O idioma é escolhido assim, nesta ordem:
-
-1. variável `SSHDECK_LANG` (`pt`, `en` ou `es`), se definida;
-2. a escolha feita com a tecla `L` (abre um popup: `↑/↓` escolhe, `Enter` aplica), que fica salva
-   no cofre;
-3. o idioma do sistema (`LC_ALL`, `LC_MESSAGES` ou `LANG`); se não for nenhum dos três, inglês.
-
-A tela de desbloqueio usa o idioma do sistema, porque a escolha salva fica dentro do cofre.
-As traduções ficam em `locales/app.yml`, com as três línguas lado a lado.
+Português, inglês e espanhol. Ordem de escolha: variável `SSHDECK_LANG` (`pt`, `en`, `es`); a
+escolha feita com `L` (salva no cofre); o idioma do sistema; inglês. A tela de desbloqueio usa o
+idioma do sistema, porque a escolha salva fica dentro do cofre. As traduções ficam em
+`locales/app.yml`.
 
 ## Onde ficam as coisas
 
 | O quê | Onde | Permissão | Criptografado? |
 |---|---|---|---|
-| **Cofre** (todos os hosts + senhas + notas) | `~/.local/share/sshdeck/vault.bin` (ou `$XDG_DATA_HOME/sshdeck/`) | pasta `700`, arquivo `600` | **Sim** |
+| **Cofre** (hosts, senhas, notas, certificados RDP aceitos) | `~/.local/share/sshdeck/vault.bin` (ou `$XDG_DATA_HOME/sshdeck/`) | pasta `700`, arquivo `600` | **Sim** |
 | Config SSH gerada | `~/.ssh/sshdeck.conf` | `600` | Não, mas **não tem senhas**: só Host, HostName, User, Port e IdentityFile |
 | Seu config SSH | `~/.ssh/config`: o sshdeck só coloca `Include ~/.ssh/sshdeck.conf` na 1ª linha | `600` | Não |
-| Backup do seu config | `~/.ssh/config.sshdeck.bak`, criado uma única vez, antes da 1ª alteração | | Não |
-| Logs do RDP | `~/.cache/sshdeck/rdp-<alias>.log` (mensagens do FreeRDP e do túnel, e o tempo de cada etapa) | pasta `700`, arquivo `600` | Não, mas **não tem senhas** |
-| Certificados RDP aceitos | `~/.config/freerdp/` (gerenciado pelo próprio FreeRDP) | | Não |
+| Backup do seu config | `~/.ssh/config.sshdeck.bak`, criado uma vez, antes da 1ª alteração | | Não |
 
-Não existe banco de dados separado: **o cofre é o banco**. É um único arquivo com tudo dentro,
-criptografado inteiro. Ou seja, nem os nomes e IPs dos servidores ficam legíveis nele, só no
-`sshdeck.conf`, que o ssh precisa ler.
-
-Com o `Include` no topo, `ssh <alias>` funciona em qualquer lugar, até fora do sshdeck. Se o mesmo
-alias existir nos dois arquivos, vale o do sshdeck.
+O cofre é um único arquivo, criptografado inteiro: nem nomes e IPs dos servidores ficam legíveis
+nele, só no `sshdeck.conf`, que o ssh precisa ler. Com o `Include` no topo, `ssh <alias>` funciona
+em qualquer lugar, até fora do sshdeck.
 
 ## Criptografia do cofre
 
-- **Derivação da chave:** **Argon2id**, com 19 MiB de memória, 2 passadas e 1 thread (os padrões
-  recomendados da biblioteca). Ele transforma a senha mestra numa chave de 256 bits. O salt é
-  aleatório, de 16 bytes, e é renovado quando você troca a senha mestra.
-- **Cifra:** **XChaCha20-Poly1305**, criptografia autenticada. Cada vez que o cofre é salvo, ele usa
-  um nonce aleatório novo de 24 bytes. Qualquer alteração no arquivo, ou uma senha errada, faz a
-  abertura falhar ("senha mestra incorreta"). O cofre nunca abre corrompido.
-- **Formato do arquivo:** `SSHDK1` (6 bytes) | salt (16) | nonce (24) | dados criptografados (JSON
-  dos hosts) + tag de autenticação (16).
-- **Gravação segura:** ele escreve primeiro em `vault.tmp`, força a gravação no disco e só então
-  renomeia. Se o computador desligar no meio, o cofre antigo continua inteiro.
-- **Senha mestra:** mínimo de 4 caracteres, e você digita duas vezes ao criar. **Não existe
-  recuperação.** Se esquecer, perde o cofre.
+- **Derivação da chave:** Argon2id (19 MiB, 2 passadas, 1 thread) transforma a senha mestra numa
+  chave de 256 bits. Salt aleatório de 16 bytes, renovado ao trocar a senha mestra.
+- **Cifra:** XChaCha20-Poly1305, com nonce aleatório novo de 24 bytes a cada gravação. Arquivo
+  alterado ou senha errada fazem a abertura falhar; o cofre nunca abre corrompido.
+- **Formato:** `SSHDK1` (6 bytes) | salt (16) | nonce (24) | JSON dos hosts criptografado + tag (16).
+- **Gravação segura:** escreve em `vault.tmp`, força a gravação no disco e só então renomeia.
+- **Senha mestra:** mínimo de 4 caracteres. **Não existe recuperação.**
 
-## Funcionalidades
+## Desenvolver
 
-### Hosts
-- Cadastrar, editar e apagar hosts (`a`, `e`, `d`), com os campos: Alias, HostName/IP, User, Port,
-  IdentityFile, Password e Notas.
-- Validação: alias sem espaços e sem `* ? ! #`, sem aliases repetidos, porta numérica (vazia = 22).
-- No campo IdentityFile vazio, um texto cinza mostra qual chave será usada (por exemplo
-  `~/.ssh/id_ed25519.pub`).
-- Importar do `~/.ssh/config` (`i`): lê Host, HostName, User, Port e IdentityFile, ignora curingas
-  (`Host *`) e blocos `Match`, e pula aliases que já existem.
-- Filtrar por alias, user ou IP (`/`).
-- Trocar a senha mestra (`P`).
+```sh
+cd gui
+npm install
+npx tauri dev      # abre a janela com recarga ao vivo
+npx tauri build    # gera .deb, .rpm e AppImage em target/release/bundle/
+```
 
-### Conexão
-- **Workspace** (`Enter`): o ssh roda dentro do sshdeck. Os servidores ficam à esquerda
-  (● = conectado), as informações da conexão embaixo (user, host, porta, chave, se tem senha, tempo
-  conectado, notas) e o terminal no centro.
-  - Várias sessões ao mesmo tempo: `Alt+←/→` troca entre elas e `x` fecha a do host selecionado.
-  - `Ctrl+]` volta para a lista e a sessão continua rodando.
-  - Histórico de 5000 linhas por sessão (`Shift+PgUp/PgDn`).
-- **Informações do servidor** (`U`): o sshdeck abre uma segunda conexão rápida em segundo plano
-  e lê `/etc/os-release`, `uname`, `nproc` e `/proc/meminfo` (sistema, hostname, kernel, CPU e
-  memória). O resultado fica no cofre e aparece na caixa ao lado da lista, com a data da coleta;
-  enquanto não houver, os campos mostram o atalho `Shift+U` em cinza. Só coleta quando você
-  aperta `U`, nunca sozinho. A exceção é a 1ª conexão (`Enter`) num host SSH: um popup pergunta
-  se pode coletar, e a resposta vale para sempre naquele host. O servidor precisa ter sido
-  conectado ao menos uma vez antes, para a chave dele já ser conhecida.
-- **Tela cheia** (`s`): roda o ssh normal no terminal e volta para o sshdeck quando você sai.
-- **ssh-copy-id** (`K`): instala sua chave no servidor e preenche a senha salva automaticamente.
-  Sem IdentityFile, quem escolhe a chave é o `ssh-copy-id`: as do ssh-agent, se houver; senão o
-  `~/.ssh/id*.pub` mais recente.
-- **rsync** (`r`): baixa ou envia arquivos em segundo plano. O popup sempre abre do zero, com a
-  direção (`←/→` troca entre baixar e enviar), o caminho no servidor e o local (a pasta de
-  downloads); embaixo mostra como vai ficar (`srv:/var/log/  →  ~/Downloads/`). `↑/↓` troca de
-  campo e `Enter` inicia.
-  - Autocomplete nos dois caminhos, como no shell: as sugestões aparecem embaixo do campo,
-    `Tab` completa o começo em comum e, se não houver mais o que completar, percorre as
-    sugestões (`Shift+Tab` volta); `Enter` escolhe a marcada. No servidor, o sshdeck abre uma
-    conexão ssh escondida enquanto o popup está aberto e lista cada pasta por ela (a 1ª leva o
-    tempo de conectar, as outras são na hora); no local, lê o disco direto. Arquivos ocultos só
-    aparecem quando o nome digitado começa com ponto, e são mostradas até 200 sugestões.
-  - Roda `rsync -azh --partial --no-i-r` pelo alias do host, com a senha salva; se a conexão
-    cair, rodar de novo continua de onde parou.
-  - O progresso (porcentagem, total, velocidade, tempo restante) aparece na borda de baixo, e ao
-    terminar a barra de status mostra o total e o tempo. Dá para ter um rsync por host ao mesmo
-    tempo.
-  - Como no rsync, `pasta/` copia o conteúdo da pasta e `pasta` copia a pasta inteira. No
-    servidor, caminho sem `/` no início começa no home do usuário.
-  - O servidor precisa ter `rsync` instalado e já ter sido conectado uma vez (chave conhecida).
+Precisa de Rust, Node e `webkit2gtk-4.1` (`pacman -S webkit2gtk-4.1`). O código fica em:
 
-### RDP (Windows)
-- No formulário, o campo **Tipo** alterna entre SSH e RDP (`←/→` ou espaço). Hosts RDP têm
-  campos próprios: **Domínio**, **Resolução**, **Pasta compartilhada** e **Túnel SSH via**.
-  O **User** é obrigatório e a porta padrão é 3389.
-- `Enter` abre o RDP numa **janela própria** do FreeRDP (`xfreerdp3`, `sdl-freerdp3` ou
-  `wlfreerdp3`, o primeiro instalado; dá para forçar com `SSHDECK_RDP_CLIENT`). Um terminal não
-  consegue desenhar a área de trabalho do Windows, por isso ele não fica no painel central.
-- A senha vai pelo **stdin** do FreeRDP (`/from-stdin`), nunca na linha de comando, onde
-  apareceria no `ps`.
-- **Resolução:** vazio = janela com 80% da tela e redimensionável; `full` = tela cheia;
-  `1920x1080`; ou `90%`.
-- **Pasta compartilhada:** aparece no Windows como a unidade `sshdeck`.
-- **Clipboard** compartilhado entre Linux e Windows (`+clipboard`).
-- **Certificado:** aceito na 1ª conexão e recusado se mudar depois (`/cert:tofu`, igual ao ssh). Se mudar (o Windows renova o dele a cada ~6 meses), o sshdeck mostra a impressão digital do novo e pergunta se você confia nele; com `s`, apaga o antigo e reconecta.
-- **Túnel SSH via `<alias>`:** para Windows que só é acessível passando por um servidor Linux.
-  O sshdeck abre `ssh -N -L` por esse host SSH (preenchendo a senha dele), espera o túnel subir e
-  conecta o RDP através dele. A chave do host do túnel precisa já ser conhecida: conecte nele
-  uma vez por SSH antes.
-- O papel de parede do Windows vem desligado (`-wallpaper`): a primeira tela aparece antes.
-- O log do RDP registra quanto tempo levou cada etapa (`[sshdeck +0.14s] tunnel ready`), para ver
-  onde a abertura demora.
-- Enquanto a janela está aberta, o ícone do host fica verde. `x` fecha a janela (e o túnel).
-  Se o FreeRDP falhar, o erro aparece na tela e os detalhes ficam no log.
-- `s` e `K` são só para hosts SSH.
+- `core/`: cofre, ssh config, rsync, túnel, askpass e idioma (sem interface);
+- `gui/src-tauri/`: comandos do app, terminal (pty), RDP (IronRDP) e atualizador;
+- `gui/src/`: a janela (React).
 
-### Senhas
-- `Alt+P` (dentro do terminal) **digita a senha direto na sessão**, sem passar pelo clipboard.
-  Ideal para `sudo su`.
-- `c`/`y` (e também o `Enter`) **copiam** a senha para o clipboard (Wayland/X11). Ela é apagada após
-  **45s**, se o clipboard ainda contiver a senha.
-- Se não houver clipboard do sistema, ele usa OSC 52: quem copia é o próprio terminal.
+## Lançar uma versão
 
-### Interface
-- **Ao lado da lista**, em texto solto, aparecem, numa caixa, a chave (hosts SSH) ou a
-  resolução (RDP), o **último login** ("há 2 h"), quando o host foi **criado** e **atualizado**
-  (`13/10/2026  14:59:11`, no fuso do sistema) e as **notas** do host selecionado. As datas
-  ficam guardadas no cofre. As colunas da lista crescem
-  com o terminal até um máximo; em terminais estreitos essas informações somem.
-- Os atalhos do contexto atual ficam sempre visíveis no rodapé, e as mensagens aparecem no canto
-  da borda.
-- `?` abre a ajuda completa.
-- Hosts com senha salva levam o ícone de cadeado do Nerd Fonts.
+O workflow `.github/workflows/release.yml` compila no GitHub e publica o release com todos os
+arquivos acima. A versão vem da tag:
 
-## Teclas
+```sh
+git tag v0.2.0 && git push origin v0.2.0
+```
 
-| Tecla | Ação |
-|---|---|
-| `Enter` | conecta: SSH no painel central (ou vai para a sessão aberta), RDP em janela própria |
-| `s` | conecta em tela cheia (ssh normal, volta ao sair) |
-| `Tab` / `l` | foca o terminal |
-| `x` | fecha a sessão (ou a janela RDP) do host selecionado |
-| `K` | `ssh-copy-id` no host (preenche a senha salva sozinho) |
-| `r` | rsync: baixa ou envia arquivos em segundo plano |
-| `c` / `y` | copia a senha |
-| `a` / `e` / `d` | adicionar / editar / apagar |
-| `/` | filtrar |
-| `i` | importar hosts do `~/.ssh/config` |
-| `U` | coleta/atualiza as informações do servidor (sistema, kernel, CPU, memória) |
-| `P` | trocar a senha mestra |
-| `L` | escolher o idioma (pt, en, es) |
-| `?` | ajuda |
-| `q` | sair |
-
-No terminal: `Ctrl+]` volta para o painel (a sessão continua), `Alt+P` digita a senha,
-`Alt+←/→` troca de sessão, `Shift+PgUp/PgDn` rola o histórico.
-
-No formulário: `Tab` navega, `←/→` no campo Tipo troca SSH/RDP, `Ctrl+S` salva, `Ctrl+R` mostra
-a senha, `Ctrl+U` limpa o campo.
+(ou Actions → Release → Run workflow, informando a versão). Versões com `-` (`1.0.0-rc.1`) saem
+como pré-lançamento e o atualizador do app não as oferece.
 
 ## Limitações conhecidas
 
-- Com o cofre aberto, as senhas ficam em texto puro na memória do processo. A chave e o buffer
-  descriptografado são zerados ao serem descartados, mas as senhas dentro da lista de hosts não.
-- No `K`, a senha é passada ao `ssh-copy-id` por uma variável de ambiente (`SSHDECK_ASKPASS_PW`),
-  só para esse processo. Outros usuários não conseguem lê-la, mas o seu próprio usuário e o root
-  conseguem, enquanto o comando roda.
-- No modo OSC 52, o sshdeck não consegue limpar o clipboard depois dos 45s.
-- No túnel do RDP, a senha do host SSH também vai por variável de ambiente para o `ssh` em
-  segundo plano, durante a conexão do túnel.
-- Na coleta de informações do servidor e no rsync, a senha do host vai por variável de ambiente
-  para o `ssh` em segundo plano, enquanto a conexão dura (como no `K`).
-- Fechar o sshdeck cancela os rsync em andamento (ele pergunta antes); rodar de novo continua
-  de onde parou.
-- Não há bloqueio automático por inatividade: o cofre fica aberto enquanto o programa estiver
-  aberto.
+- Com o cofre aberto, as senhas ficam em texto puro na memória do processo.
+- No `K`, no rsync, na coleta de informações e no túnel do RDP, a senha do host vai por variável
+  de ambiente (`SSHDECK_ASKPASS_PW`) para o `ssh` em segundo plano, enquanto ele roda. Outros
+  usuários não a leem, mas o seu usuário e o root sim.
+- RDP sem clipboard compartilhado, som e pastas compartilhadas, por enquanto.
+- Fechar o app cancela os rsync em andamento (ele pergunta antes).
+- Não há bloqueio automático por inatividade.

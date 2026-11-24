@@ -1,0 +1,18 @@
+[package]
+name = "sshdeck-core"
+version = "0.2.0"
+edition = "2024"
+
+# Lógica sem interface: cofre, ssh config, rsync, túnel do RDP, askpass e idioma.
+# Usada pelo app (gui/src-tauri).
+
+[dependencies]
+anyhow = "1.0.104"
+argon2 = "0.6.0"
+chacha20poly1305 = "0.11.0"
+dirs = "7.0.0"
+rand = "0.8"
+rust-i18n = "4"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+zeroize = "1.9.1"

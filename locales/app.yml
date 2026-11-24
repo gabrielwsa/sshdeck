@@ -33,10 +33,6 @@ field.resolution:
   pt: "Resolução"
   en: "Resolution"
   es: "Resolución"
-field.share:
-  pt: "Pasta compart."
-  en: "Shared folder"
-  es: "Carpeta compart."
 field.gateway:
   pt: "Túnel SSH via"
   en: "SSH tunnel via"
@@ -72,9 +68,9 @@ err.rdp_user:
   en: "RDP requires a User"
   es: "RDP requiere un usuario"
 err.resolution:
-  pt: "Resolução inválida: use vazio, full, 1920x1080 ou 90%"
-  en: "Invalid resolution: use empty, full, 1920x1080 or 90%"
-  es: "Resolución inválida: use vacío, full, 1920x1080 o 90%"
+  pt: "Resolução inválida: deixe vazio (acompanha a aba) ou use LarguraxAltura, ex.: 1920x1080"
+  en: "Invalid resolution: leave empty (follows the tab) or use WidthxHeight, e.g. 1920x1080"
+  es: "Resolución inválida: deja vacío (sigue la pestaña) o usa AnchoxAlto, ej.: 1920x1080"
 err.duplicate:
   pt: "Já existe um host com alias '%{alias}'"
   en: "A host with alias '%{alias}' already exists"
@@ -97,10 +93,6 @@ st.sessions_ended:
   pt: "Sessão encerrada: %{list}"
   en: "Session ended: %{list}"
   es: "Sesión terminada: %{list}"
-st.rdp_already:
-  pt: "RDP %{alias} já está aberto"
-  en: "RDP %{alias} is already open"
-  es: "RDP %{alias} ya está abierto"
 st.gateway_missing:
   pt: "Túnel SSH via '%{gw}': host não existe"
   en: "SSH tunnel via '%{gw}': host does not exist"
@@ -113,26 +105,10 @@ st.rdp_opening:
   pt: "Abrindo RDP %{alias}…"
   en: "Opening RDP %{alias}…"
   es: "Abriendo RDP %{alias}…"
-st.rdp_failed:
-  pt: "Falha no RDP: %{err}"
-  en: "RDP failed: %{err}"
-  es: "Fallo en RDP: %{err}"
-st.cert_changed:
-  pt: "RDP %{alias}: o certificado do servidor mudou. Se confiar nele, apague %{path}"
-  en: "RDP %{alias}: the server certificate changed. If you trust it, delete %{path}"
-  es: "RDP %{alias}: el certificado del servidor cambió. Si confía en él, borre %{path}"
 st.cert_kept:
   pt: "RDP %{alias}: certificado novo recusado, conexão cancelada"
   en: "RDP %{alias}: new certificate refused, connection cancelled"
   es: "RDP %{alias}: certificado nuevo rechazado, conexión cancelada"
-st.cert_remove_failed:
-  pt: "Não deu para apagar o certificado antigo: %{err}"
-  en: "Could not delete the old certificate: %{err}"
-  es: "No se pudo borrar el certificado antiguo: %{err}"
-st.connect_failed:
-  pt: "Falha ao conectar: %{err}"
-  en: "Connection failed: %{err}"
-  es: "Error al conectar: %{err}"
 st.pw_typed:
   pt: "Senha de %{alias} digitada — aperte Enter"
   en: "%{alias} password typed — press Enter"
@@ -149,14 +125,6 @@ st.pw_copied:
   pt: "Senha de %{alias} copiada (%{how}) — limpa em %{secs}s"
   en: "%{alias} password copied (%{how}) — cleared in %{secs}s"
   es: "Contraseña de %{alias} copiada (%{how}) — se borra en %{secs}s"
-st.sshconfig_error:
-  pt: "Erro no ssh config: %{err}"
-  en: "ssh config error: %{err}"
-  es: "Error en ssh config: %{err}"
-st.vault_created:
-  pt: "Cofre criado. Aperte 'a' para adicionar um host ou 'i' para importar do ~/.ssh/config"
-  en: "Vault created. Press 'a' to add a host or 'i' to import from ~/.ssh/config"
-  es: "Bóveda creada. Presione 'a' para agregar un host o 'i' para importar de ~/.ssh/config"
 st.master_changed:
   pt: "Senha mestra alterada"
   en: "Master password changed"
@@ -221,10 +189,6 @@ err.rsync_missing:
   pt: "rsync não encontrado (instale o pacote rsync)"
   en: "rsync not found (install the rsync package)"
   es: "rsync no encontrado (instale el paquete rsync)"
-st.transfer_started:
-  pt: "rsync %{alias} iniciado; o progresso aparece na borda de baixo"
-  en: "rsync %{alias} started; progress shows on the bottom border"
-  es: "rsync %{alias} iniciado; el progreso aparece en el borde inferior"
 st.transfer_ok:
   pt: "rsync %{alias} concluído: %{bytes} em %{time}"
   en: "rsync %{alias} done: %{bytes} in %{time}"
@@ -327,36 +291,11 @@ rdp.tunnel_timeout:
   pt: "túnel SSH não respondeu a tempo"
   en: "SSH tunnel did not respond in time"
   es: "el túnel SSH no respondió a tiempo"
-rdp.see_log:
-  pt: "veja %{path}"
-  en: "see %{path}"
-  es: "vea %{path}"
-rdp.not_found:
-  pt: "FreeRDP não encontrado (instale o pacote freerdp)"
-  en: "FreeRDP not found (install the freerdp package)"
-  es: "FreeRDP no encontrado (instale el paquete freerdp)"
 rdp.spawn_tunnel:
   pt: "executando ssh para o túnel"
   en: "running ssh for the tunnel"
   es: "ejecutando ssh para el túnel"
-rdp.spawn_client:
-  pt: "executando o FreeRDP"
-  en: "running FreeRDP"
-  es: "ejecutando FreeRDP"
-rdp.no_cache:
-  pt: "sem diretório de cache"
-  en: "no cache directory"
-  es: "sin directorio de caché"
-
 # --- sessão ssh embutida / ssh config ---
-session.pty:
-  pt: "abrindo pty: %{err}"
-  en: "opening pty: %{err}"
-  es: "abriendo pty: %{err}"
-session.spawn:
-  pt: "executando ssh: %{err}"
-  en: "running ssh: %{err}"
-  es: "ejecutando ssh: %{err}"
 ssh.no_home:
   pt: "HOME não encontrado"
   en: "HOME not found"
@@ -374,44 +313,6 @@ hint.none:
   en: "empty = no key in ~/.ssh (run ssh-keygen)"
   es: "vacío = ninguna clave en ~/.ssh (ejecute ssh-keygen)"
 
-# --- comandos em tela cheia ---
-ext.ssh_banner:
-  pt: "→ ssh %{alias}   (senha no clipboard: Ctrl+Shift+V)"
-  en: "→ ssh %{alias}   (password in clipboard: Ctrl+Shift+V)"
-  es: "→ ssh %{alias}   (contraseña en el portapapeles: Ctrl+Shift+V)"
-ext.ssh_ended:
-  pt: "Sessão com %{alias} encerrada"
-  en: "Session with %{alias} ended"
-  es: "Sesión con %{alias} terminada"
-ext.ssh_exit:
-  pt: "ssh %{alias} saiu com código %{code}"
-  en: "ssh %{alias} exited with code %{code}"
-  es: "ssh %{alias} salió con código %{code}"
-ext.ssh_failed:
-  pt: "Falha ao executar ssh: %{err}"
-  en: "Failed to run ssh: %{err}"
-  es: "Error al ejecutar ssh: %{err}"
-ext.copyid_ok:
-  pt: "Chave copiada para %{alias}"
-  en: "Key copied to %{alias}"
-  es: "Clave copiada a %{alias}"
-ext.copyid_failed:
-  pt: "ssh-copy-id para %{alias} falhou"
-  en: "ssh-copy-id to %{alias} failed"
-  es: "ssh-copy-id a %{alias} falló"
-ext.copyid_error:
-  pt: "Falha ao executar ssh-copy-id: %{err}"
-  en: "Failed to run ssh-copy-id: %{err}"
-  es: "Error al ejecutar ssh-copy-id: %{err}"
-ext.done:
-  pt: "Pronto — Enter para voltar ao sshdeck"
-  en: "Done — Enter to return to sshdeck"
-  es: "Listo — Enter para volver a sshdeck"
-ext.failed:
-  pt: "Falhou — Enter para voltar ao sshdeck"
-  en: "Failed — Enter to return to sshdeck"
-  es: "Falló — Enter para volver a sshdeck"
-
 # --- interface ---
 ui.extra_domain:
   pt: "domínio %{d}"
@@ -421,10 +322,6 @@ ui.extra_via:
   pt: "via %{gw}"
   en: "via %{gw}"
   es: "vía %{gw}"
-ui.lang_title:
-  pt: "Idioma"
-  en: "Language"
-  es: "Idioma"
 ui.sysinfo_title:
   pt: "Informações do servidor"
   en: "Server information"
@@ -437,10 +334,6 @@ ui.cert_title:
   pt: "Certificado do servidor mudou"
   en: "Server certificate changed"
   es: "El certificado del servidor cambió"
-ui.cert_q:
-  pt: "O certificado de %{alias} não é o mesmo da última conexão.\n\nEm geral é o Windows que renovou o dele (vale ~6 meses),\nmas também pode ser alguém no meio da conexão.\n\nNovo: %{thumb}\n\nConfiar no novo e conectar? (apaga %{path})"
-  en: "The certificate of %{alias} is not the same as last time.\n\nUsually Windows renewed it (it lasts ~6 months),\nbut it could also be someone in the middle of the connection.\n\nNew: %{thumb}\n\nTrust the new one and connect? (deletes %{path})"
-  es: "El certificado de %{alias} no es el mismo de la última conexión.\n\nEn general es Windows que lo renovó (dura ~6 meses),\npero también puede ser alguien en medio de la conexión.\n\nNuevo: %{thumb}\n\n¿Confiar en el nuevo y conectar? (borra %{path})"
 ui.delete_title:
   pt: "Apagar"
   en: "Delete"
@@ -509,26 +402,6 @@ transfer.no_suggestions:
   pt: "sem sugestões: %{err}"
   en: "no suggestions: %{err}"
   es: "sin sugerencias: %{err}"
-transfer.more:
-  pt: "… mais %{n}"
-  en: "… %{n} more"
-  es: "… %{n} más"
-ui.filter:
-  pt: "filtro: %{f}"
-  en: "filter: %{f}"
-  es: "filtro: %{f}"
-ui.col_user:
-  pt: "User"
-  en: "User"
-  es: "Usuario"
-ui.col_port:
-  pt: "Port"
-  en: "Port"
-  es: "Puerto"
-ui.col_extra:
-  pt: "Extra"
-  en: "Extra"
-  es: "Extra"
 ui.empty:
   pt: "Nenhum host ainda.\n\n'a' adiciona um host  ·  'i' importa do ~/.ssh/config"
   en: "No hosts yet.\n\n'a' adds a host  ·  'i' imports from ~/.ssh/config"
@@ -537,14 +410,6 @@ ui.no_match:
   pt: "Nenhum host corresponde ao filtro."
   en: "No host matches the filter."
   es: "Ningún host coincide con el filtro."
-ui.servers:
-  pt: "Servidores"
-  en: "Servers"
-  es: "Servidores"
-ui.connection:
-  pt: "Conexão"
-  en: "Connection"
-  es: "Conexión"
 ui.history:
   pt: "histórico -%{n}"
   en: "history -%{n}"
@@ -569,10 +434,6 @@ info.password:
   pt: "senha"
   en: "password"
   es: "contraseña"
-info.time:
-  pt: "tempo"
-  en: "time"
-  es: "tiempo"
 info.last:
   pt: "último login"
   en: "last login"
@@ -613,10 +474,6 @@ info.resolution:
   pt: "resolução"
   en: "resolution"
   es: "resolución"
-info.res_default:
-  pt: "janela 80%"
-  en: "80% window"
-  es: "ventana 80%"
 info.connected:
   pt: "conectado"
   en: "connected"
@@ -645,18 +502,6 @@ info.collected:
   pt: "coletado"
   en: "collected"
   es: "recopilado"
-info.collecting:
-  pt: "coletando..."
-  en: "collecting..."
-  es: "recopilando..."
-info.not_saved:
-  pt: "não salva"
-  en: "not saved"
-  es: "no guardada"
-info.saved:
-  pt: "%{icon} salva (Alt+P)"
-  en: "%{icon} saved (Alt+P)"
-  es: "%{icon} guardada (Alt+P)"
 form.new:
   pt: "Novo host"
   en: "New host"
@@ -665,108 +510,20 @@ form.edit:
   pt: "Editar host"
   en: "Edit host"
   es: "Editar host"
-form.toggle:
-  pt: "←/→ troca"
-  en: "←/→ switch"
-  es: "←/→ cambia"
 ph.domain:
   pt: "vazio = conta local"
   en: "empty = local account"
   es: "vacío = cuenta local"
-ph.resolution:
-  pt: "vazio = janela 80% redimensionável · full · 1920x1080 · 90%"
-  en: "empty = resizable 80% window · full · 1920x1080 · 90%"
-  es: "vacío = ventana 80% redimensionable · full · 1920x1080 · 90%"
-ph.share:
-  pt: "vazio = nenhuma · ex.: ~/Downloads"
-  en: "empty = none · e.g. ~/Downloads"
-  es: "vacío = ninguna · ej.: ~/Downloads"
 ph.gateway:
   pt: "vazio = conexão direta · ex.: alias de um host SSH"
   en: "empty = direct connection · e.g. alias of an SSH host"
   es: "vacío = conexión directa · ej.: alias de un host SSH"
 
 # --- atalhos do rodapé ---
-key.yes:
-  pt: "s"
-  en: "y"
-  es: "s"
-key.other:
-  pt: "outra tecla"
-  en: "other key"
-  es: "otra tecla"
-key.any:
-  pt: "qualquer tecla"
-  en: "any key"
-  es: "cualquier tecla"
-key.arrows_space:
-  pt: "←/→ ou espaço"
-  en: "←/→ or space"
-  es: "←/→ o espacio"
-key.type:
-  pt: "digite"
-  en: "type"
-  es: "escriba"
-h.confirm:
-  pt: "confirmar"
-  en: "confirm"
-  es: "confirmar"
-h.cancel:
-  pt: "cancelar"
-  en: "cancel"
-  es: "cancelar"
-h.quit:
-  pt: "sair"
-  en: "quit"
-  es: "salir"
-h.next:
-  pt: "próximo"
-  en: "next"
-  es: "siguiente"
-h.prev:
-  pt: "anterior"
-  en: "previous"
-  es: "anterior"
-h.save:
-  pt: "salvar"
-  en: "save"
-  es: "guardar"
-h.show_pw:
-  pt: "mostrar senha"
-  en: "show password"
-  es: "mostrar contraseña"
-h.clear_field:
-  pt: "limpar campo"
-  en: "clear field"
-  es: "limpiar campo"
-h.yes:
-  pt: "sim"
-  en: "yes"
-  es: "sí"
-h.no:
-  pt: "não"
-  en: "no"
-  es: "no"
-h.close:
-  pt: "fechar"
-  en: "close"
-  es: "cerrar"
 h.filter:
   pt: "filtrar"
   en: "filter"
   es: "filtrar"
-h.choose:
-  pt: "escolher"
-  en: "choose"
-  es: "elegir"
-h.ok:
-  pt: "ok"
-  en: "ok"
-  es: "ok"
-h.clear:
-  pt: "limpar"
-  en: "clear"
-  es: "limpiar"
 h.panel:
   pt: "painel"
   en: "panel"
@@ -779,10 +536,6 @@ h.switch_session:
   pt: "trocar sessão"
   en: "switch session"
   es: "cambiar sesión"
-h.history:
-  pt: "histórico"
-  en: "history"
-  es: "historial"
 h.connect:
   pt: "conectar"
   en: "connect"
@@ -791,88 +544,19 @@ h.terminal:
   pt: "terminal"
   en: "terminal"
   es: "terminal"
-h.close_session:
-  pt: "fechar sessão"
-  en: "close session"
-  es: "cerrar sesión"
 h.copy_pw:
   pt: "copiar senha"
   en: "copy password"
   es: "copiar contraseña"
-h.add_edit_del:
-  pt: "add/editar/apagar"
-  en: "add/edit/delete"
-  es: "agregar/editar/eliminar"
-h.help:
-  pt: "ajuda"
-  en: "help"
-  es: "ayuda"
-h.fullscreen:
-  pt: "tela cheia"
-  en: "fullscreen"
-  es: "pantalla completa"
-h.sysinfo:
-  pt: "info do servidor"
-  en: "server info"
-  es: "info del servidor"
-h.direction:
-  pt: "baixar/enviar"
-  en: "download/upload"
-  es: "bajar/subir"
-h.start:
-  pt: "iniciar"
-  en: "start"
-  es: "iniciar"
-h.field:
-  pt: "campo"
-  en: "field"
-  es: "campo"
 h.complete:
   pt: "completar"
   en: "complete"
   es: "completar"
-h.next_prev:
-  pt: "próxima/anterior"
-  en: "next/previous"
-  es: "siguiente/anterior"
-h.pick:
-  pt: "escolher"
-  en: "pick"
-  es: "elegir"
-h.back:
-  pt: "voltar"
-  en: "back"
-  es: "volver"
-h.import:
-  pt: "importar"
-  en: "import"
-  es: "importar"
-
 # --- ajuda (?) ---
-help.title:
-  pt: "Ajuda"
-  en: "Help"
-  es: "Ayuda"
-help.close:
-  pt: "qualquer tecla fecha"
-  en: "any key closes"
-  es: "cualquier tecla cierra"
-help.enter:
-  pt: "conecta: SSH no painel central, RDP em janela própria"
-  en: "connect: SSH in the center panel, RDP in its own window"
-  es: "conecta: SSH en el panel central, RDP en ventana propia"
-help.s:
-  pt: "conecta em tela cheia (ssh normal)"
-  en: "connect fullscreen (plain ssh)"
-  es: "conecta en pantalla completa (ssh normal)"
 help.tab:
   pt: "vai para o terminal"
   en: "go to the terminal"
   es: "va a la terminal"
-help.x:
-  pt: "fecha a sessão (ou a janela RDP) do host"
-  en: "close the host's session (or RDP window)"
-  es: "cierra la sesión (o la ventana RDP) del host"
 help.k:
   pt: "ssh-copy-id: instala sua chave no servidor (usa a senha salva)"
   en: "ssh-copy-id: install your key on the server (uses the saved password)"
@@ -925,10 +609,6 @@ help.quit:
   pt: "sair"
   en: "quit"
   es: "salir"
-help.in_terminal:
-  pt: "No terminal:"
-  en: "In the terminal:"
-  es: "En la terminal:"
 help.panel:
   pt: "volta para o painel (sessão continua)"
   en: "back to the panel (session keeps running)"
@@ -953,3 +633,369 @@ help.tip:
   pt: "sudo su → Alt+P (ou Ctrl+Shift+V) → Enter"
   en: "sudo su → Alt+P (or Ctrl+Shift+V) → Enter"
   es: "sudo su → Alt+P (o Ctrl+Shift+V) → Enter"
+
+# --- app gráfico (gui/) ---
+gui.search:
+  pt: "Buscar hosts"
+  en: "Search hosts"
+  es: "Buscar hosts"
+gui.new_host:
+  pt: "Novo host"
+  en: "New host"
+  es: "Nuevo host"
+gui.connect:
+  pt: "Conectar"
+  en: "Connect"
+  es: "Conectar"
+gui.open_session:
+  pt: "Ir para a sessão"
+  en: "Go to session"
+  es: "Ir a la sesión"
+gui.copy_pw:
+  pt: "Copiar senha"
+  en: "Copy password"
+  es: "Copiar contraseña"
+gui.type_pw:
+  pt: "Digitar senha"
+  en: "Type password"
+  es: "Escribir contraseña"
+gui.edit:
+  pt: "Editar"
+  en: "Edit"
+  es: "Editar"
+gui.delete:
+  pt: "Apagar"
+  en: "Delete"
+  es: "Borrar"
+gui.collect:
+  pt: "Coletar informações"
+  en: "Collect info"
+  es: "Recolectar información"
+gui.server:
+  pt: "Servidor"
+  en: "Server"
+  es: "Servidor"
+gui.access:
+  pt: "Acesso"
+  en: "Access"
+  es: "Acceso"
+gui.activity:
+  pt: "Atividade"
+  en: "Activity"
+  es: "Actividad"
+gui.not_collected:
+  pt: "Sistema, kernel e hardware ainda não foram coletados."
+  en: "System, kernel and hardware haven't been collected yet."
+  es: "Sistema, kernel y hardware aún no se recolectaron."
+gui.panel:
+  pt: "Painel de informações"
+  en: "Info panel"
+  es: "Panel de información"
+gui.disconnect:
+  pt: "Desconectar"
+  en: "Disconnect"
+  es: "Desconectar"
+gui.hosts_n:
+  pt: "%{n} hosts"
+  en: "%{n} hosts"
+  es: "%{n} hosts"
+gui.sessions_n:
+  pt: "%{n} sessão(ões) aberta(s)"
+  en: "%{n} open session(s)"
+  es: "%{n} sesión(es) abierta(s)"
+gui.select_host:
+  pt: "Selecione um host na lista"
+  en: "Select a host from the list"
+  es: "Seleccione un host de la lista"
+gui.connected_for:
+  pt: "conectado há %{t}"
+  en: "connected for %{t}"
+  es: "conectado hace %{t}"
+gui.unlock:
+  pt: "Desbloquear"
+  en: "Unlock"
+  es: "Desbloquear"
+gui.continue:
+  pt: "Continuar"
+  en: "Continue"
+  es: "Continuar"
+gui.master_pw:
+  pt: "Senha mestra"
+  en: "Master password"
+  es: "Contraseña maestra"
+gui.quit:
+  pt: "Sair"
+  en: "Quit"
+  es: "Salir"
+gui.cancel:
+  pt: "Cancelar"
+  en: "Cancel"
+  es: "Cancelar"
+gui.no_password:
+  pt: "sem senha salva"
+  en: "no saved password"
+  es: "sin contraseña guardada"
+gui.password_saved:
+  pt: "salva"
+  en: "saved"
+  es: "guardada"
+gui.no_notes:
+  pt: "Sem notas."
+  en: "No notes."
+  es: "Sin notas."
+gui.ssh_config:
+  pt: "Config SSH"
+  en: "SSH config"
+  es: "Config SSH"
+gui.import:
+  pt: "Importar do ~/.ssh/config"
+  en: "Import from ~/.ssh/config"
+  es: "Importar de ~/.ssh/config"
+gui.language:
+  pt: "Idioma"
+  en: "Language"
+  es: "Idioma"
+gui.change_master:
+  pt: "Trocar senha mestra"
+  en: "Change master password"
+  es: "Cambiar contraseña maestra"
+gui.shortcuts:
+  pt: "Atalhos"
+  en: "Shortcuts"
+  es: "Atajos"
+gui.save:
+  pt: "Salvar"
+  en: "Save"
+  es: "Guardar"
+gui.show:
+  pt: "Mostrar"
+  en: "Show"
+  es: "Mostrar"
+gui.hide:
+  pt: "Ocultar"
+  en: "Hide"
+  es: "Ocultar"
+gui.start:
+  pt: "Iniciar"
+  en: "Start"
+  es: "Iniciar"
+gui.collect_yes:
+  pt: "Coletar"
+  en: "Collect"
+  es: "Recolectar"
+gui.not_now:
+  pt: "Agora não"
+  en: "Not now"
+  es: "Ahora no"
+gui.trust:
+  pt: "Confiar no novo"
+  en: "Trust the new one"
+  es: "Confiar en el nuevo"
+gui.refuse:
+  pt: "Recusar"
+  en: "Refuse"
+  es: "Rechazar"
+gui.collecting:
+  pt: "Coletando…"
+  en: "Collecting…"
+  es: "Recolectando…"
+gui.close:
+  pt: "Fechar"
+  en: "Close"
+  es: "Cerrar"
+gui.transfers:
+  pt: "Transferências"
+  en: "Transfers"
+  es: "Transferencias"
+gui.new_master:
+  pt: "Nova senha mestra"
+  en: "New master password"
+  es: "Nueva contraseña maestra"
+gui.confirm_master:
+  pt: "Confirme a nova senha"
+  en: "Confirm the new password"
+  es: "Confirme la nueva contraseña"
+gui.optional:
+  pt: "opcional"
+  en: "optional"
+  es: "opcional"
+gui.port_default:
+  pt: "vazio = %{port}"
+  en: "empty = %{port}"
+  es: "vacío = %{port}"
+gui.no_pw_ph:
+  pt: "vazio = sem senha salva"
+  en: "empty = no saved password"
+  es: "vacío = sin contraseña guardada"
+gui.in_terminal:
+  pt: "No terminal"
+  en: "In the terminal"
+  es: "En la terminal"
+gui.in_list:
+  pt: "Na lista"
+  en: "In the list"
+  es: "En la lista"
+gui.copyid_done:
+  pt: "Pronto — a chave está no servidor. Enter fecha a aba."
+  en: "Done — the key is on the server. Enter closes the tab."
+  es: "Listo — la clave está en el servidor. Enter cierra la pestaña."
+gui.copyid_failed:
+  pt: "Falhou — veja a mensagem acima. Enter fecha a aba."
+  en: "Failed — see the message above. Enter closes the tab."
+  es: "Falló — vea el mensaje arriba. Enter cierra la pestaña."
+gui.transfer_started:
+  pt: "rsync %{alias} iniciado"
+  en: "rsync %{alias} started"
+  es: "rsync %{alias} iniciado"
+gui.cert_q:
+  pt: "O certificado de %{alias} não é o mesmo da última conexão.\n\nEm geral é o Windows que renovou o dele (vale ~6 meses), mas também pode ser alguém no meio da conexão. A senha ainda não foi enviada.\n\nNovo: %{thumb}"
+  en: "The certificate of %{alias} is not the same as last time.\n\nUsually Windows renewed it (it lasts ~6 months), but it could also be someone in the middle of the connection. The password has not been sent.\n\nNew: %{thumb}"
+  es: "El certificado de %{alias} no es el mismo de la última conexión.\n\nEn general es Windows que lo renovó (dura ~6 meses), pero también puede ser alguien en medio de la conexión. La contraseña aún no se envió.\n\nNuevo: %{thumb}"
+st.rdp_connected:
+  pt: "RDP %{alias} conectado"
+  en: "RDP %{alias} connected"
+  es: "RDP %{alias} conectado"
+gui.res_default:
+  pt: "tamanho da aba"
+  en: "tab size"
+  es: "tamaño de la pestaña"
+gui.ph_resolution:
+  pt: "vazio = acompanha o tamanho da aba · 1920x1080 = fixa"
+  en: "empty = follows the tab size · 1920x1080 = fixed"
+  es: "vacío = sigue el tamaño de la pestaña · 1920x1080 = fija"
+gui.rdp_logon_failed:
+  pt: "usuário ou senha incorretos"
+  en: "wrong user or password"
+  es: "usuario o contraseña incorrectos"
+gui.rdp_account_blocked:
+  pt: "esta conta não pode entrar por RDP"
+  en: "this account cannot log in over RDP"
+  es: "esta cuenta no puede entrar por RDP"
+upd.rate_limited:
+  pt: "Limite de consultas ao GitHub atingido nesta rede. Tente de novo em alguns minutos."
+  en: "GitHub query limit reached on this network. Try again in a few minutes."
+  es: "Se alcanzó el límite de consultas a GitHub en esta red. Intenta de nuevo en unos minutos."
+upd.no_build:
+  pt: "Nenhuma versão publicada para este sistema"
+  en: "No version published for this system"
+  es: "Ninguna versión publicada para este sistema"
+upd.no_sums:
+  pt: "O release não lista o SHA256 do arquivo; atualização cancelada"
+  en: "The release does not list the file's SHA256; update cancelled"
+  es: "El release no lista el SHA256 del archivo; actualización cancelada"
+upd.sha_mismatch:
+  pt: "O arquivo baixado não confere com o publicado (SHA256). Tente de novo."
+  en: "The downloaded file does not match the published one (SHA256). Try again."
+  es: "El archivo descargado no coincide con el publicado (SHA256). Intenta de nuevo."
+upd.download_failed:
+  pt: "Download falhou: %{err}"
+  en: "Download failed: %{err}"
+  es: "La descarga falló: %{err}"
+upd.not_writable:
+  pt: "Sem permissão para trocar o AppImage em %{dir}"
+  en: "No permission to replace the AppImage in %{dir}"
+  es: "Sin permiso para reemplazar el AppImage en %{dir}"
+upd.cancelled:
+  pt: "Instalação cancelada."
+  en: "Installation cancelled."
+  es: "Instalación cancelada."
+upd.denied:
+  pt: "Senha incorreta ou sem permissão para instalar."
+  en: "Wrong password or not allowed to install."
+  es: "Contraseña incorrecta o sin permiso para instalar."
+upd.no_pkexec:
+  pt: "pkexec não encontrado: instale o polkit para atualizar pelo app."
+  en: "pkexec not found: install polkit to update from the app."
+  es: "pkexec no encontrado: instala polkit para actualizar desde la app."
+gui.upd_available:
+  pt: "Atualizar para %{v}"
+  en: "Update to %{v}"
+  es: "Actualizar a %{v}"
+gui.upd_manual:
+  pt: "Nova versão %{v} · baixar"
+  en: "New version %{v} · download"
+  es: "Nueva versión %{v} · descargar"
+gui.upd_downloading:
+  pt: "Baixando atualização… %{p}%"
+  en: "Downloading update… %{p}%"
+  es: "Descargando actualización… %{p}%"
+gui.upd_ready:
+  pt: "Reiniciar e atualizar para %{v}"
+  en: "Restart and update to %{v}"
+  es: "Reiniciar y actualizar a %{v}"
+gui.upd_installing:
+  pt: "Instalando…"
+  en: "Installing…"
+  es: "Instalando…"
+gui.upd_installing_pw:
+  pt: "Instalando… confirme a senha do sistema"
+  en: "Installing… confirm the system password"
+  es: "Instalando… confirma la contraseña del sistema"
+gui.upd_retry:
+  pt: "Tentar baixar %{v} de novo"
+  en: "Retry downloading %{v}"
+  es: "Reintentar descargar %{v}"
+gui.upd_hint_auto:
+  pt: "Baixa em segundo plano; depois é só reiniciar"
+  en: "Downloads in the background; then just restart"
+  es: "Descarga en segundo plano; después solo reinicia"
+gui.upd_hint_manual:
+  pt: "Abre a página de download da nova versão"
+  en: "Opens the download page of the new version"
+  es: "Abre la página de descarga de la nueva versión"
+gui.upd_hint_ready:
+  pt: "Fecha o app, instala a nova versão e abre de novo"
+  en: "Closes the app, installs the new version and opens it again"
+  es: "Cierra la app, instala la nueva versión y la abre de nuevo"
+gui.upd_hint_ready_pw:
+  pt: "Pede a senha do sistema, instala a nova versão e abre o app de novo"
+  en: "Asks for the system password, installs the new version and reopens the app"
+  es: "Pide la contraseña del sistema, instala la nueva versión y abre la app de nuevo"
+gui.upd_failed:
+  pt: "O download falhou: %{e}. Clique para tentar de novo."
+  en: "The download failed: %{e}. Click to try again."
+  es: "La descarga falló: %{e}. Haz clic para intentar de nuevo."
+gui.upd_check:
+  pt: "Buscar atualizações"
+  en: "Check for updates"
+  es: "Buscar actualizaciones"
+gui.upd_checking:
+  pt: "Buscando atualizações…"
+  en: "Checking for updates…"
+  es: "Buscando actualizaciones…"
+gui.upd_none:
+  pt: "Você já tem a versão mais nova (%{v})"
+  en: "You already have the latest version (%{v})"
+  es: "Ya tienes la versión más reciente (%{v})"
+gui.upd_error:
+  pt: "Não foi possível buscar atualizações: %{e}"
+  en: "Could not check for updates: %{e}"
+  es: "No se pudo buscar actualizaciones: %{e}"
+gui.upd_found:
+  pt: "Nova versão %{v} disponível"
+  en: "New version %{v} available"
+  es: "Nueva versión %{v} disponible"
+gui.upd_version:
+  pt: "versão %{v}"
+  en: "version %{v}"
+  es: "versión %{v}"
+gui.upd_title:
+  pt: "Atualizar o sshdeck"
+  en: "Update sshdeck"
+  es: "Actualizar sshdeck"
+gui.upd_restart_q:
+  pt: "Para atualizar, o sshdeck fecha e abre de novo. Sessões abertas e transferências em andamento serão encerradas."
+  en: "To update, sshdeck closes and opens again. Open sessions and running transfers will be ended."
+  es: "Para actualizar, sshdeck se cierra y se abre de nuevo. Las sesiones abiertas y las transferencias en curso se cerrarán."
+gui.upd_restart:
+  pt: "Reiniciar e atualizar"
+  en: "Restart and update"
+  es: "Reiniciar y actualizar"
+gui.help_enter:
+  pt: "conecta: SSH ou RDP numa aba"
+  en: "connects: SSH or RDP in a tab"
+  es: "conecta: SSH o RDP en una pestaña"
+gui.help_x:
+  pt: "fecha a sessão (SSH ou RDP) do host"
+  en: "closes the host's session (SSH or RDP)"
+  es: "cierra la sesión (SSH o RDP) del host"

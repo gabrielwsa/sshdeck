@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "sshdeck",
+  "version": "0.2.0",
+  "identifier": "com.gabrielwsa.sshdeck",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "sshdeck",
+        "width": 1400,
+        "height": 800,
+        "minWidth": 720,
+        "minHeight": 420
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "deb",
+      "rpm",
+      "appimage"
+    ],
+    "icon": [
+      "icons/icon.png"
+    ],
+    "category": "Utility",
+    "shortDescription": "Gerenciador de conexões SSH e RDP",
+    "longDescription": "sshdeck: hosts SSH e RDP com senhas num cofre criptografado, terminal e área de trabalho remota em abas, rsync e ssh-copy-id.",
+    "homepage": "https://github.com/gabrielwsa/sshdeck",
+    "publisher": "gabrielwsa",
+    "linux": {
+      "deb": {
+        "depends": [
+          "openssh-client",
+          "rsync"
+        ]
+      },
+      "rpm": {
+        "depends": [
+          "openssh-clients",
+          "rsync"
+        ]
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
+  },
+  "mainBinaryName": "sshdeck-gui"
+}

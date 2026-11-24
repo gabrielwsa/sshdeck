@@ -1,0 +1,165 @@
+# Gera os pacotes do sshdeck e publica como release deste repositório.
+#
+# Como lançar uma versão (a tag define o número da versão):
+#   git tag v0.2.0 && git push origin v0.2.0
+# ou em Actions → Release → Run workflow, informando a versão.
+#
+# O que sai no release:
+#   - sshdeck_X_amd64.AppImage          qualquer distro (se atualiza sozinho)
+#   - sshdeck_X_amd64.deb               Debian, Ubuntu, Mint…
+#   - sshdeck-X-1.x86_64.rpm            Fedora, openSUSE…
+#   - sshdeck-X-1-x86_64.pkg.tar.zst    Arch
+#   - SHA256SUMS                        conferido pelo atualizador do app antes de instalar
+#
+# O atualizador do app (gui/src-tauri/src/update.rs) procura estes nomes: mudou aqui, mude lá.
+#
+# Compila no Ubuntu 22.04 (glibc 2.35) para rodar também em distros mais antigas.
+# O release só é criado no fim, com todos os arquivos: um build que falha não publica nada,
+# e o atualizador nunca vê uma versão pela metade.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão (ex.: 0.2.0)'
+        required: true
+
+permissions:
+  contents: write
+
+# um segundo push da mesma tag cancela o build que ainda está rodando
+concurrency:
+  group: release-${{ github.ref }}-${{ github.event.inputs.version }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    # um build travado não pode gastar horas
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Versão
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          [ -z "$VERSION" ] && VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${VERSION#v}"
+          echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' \
+            || { echo "::error::Versão inválida: $VERSION (use X.Y.Z)"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Dependências do sistema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev \
+            patchelf file build-essential \
+            ruby ruby-dev libarchive-tools zstd
+          # fpm monta o pacote do Arch a partir do conteúdo do .deb
+          sudo gem install --no-document fpm
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gui/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # guarda as dependências Rust compiladas entre os builds: só os nossos crates recompilam
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-linux
+
+      # a versão do app vem da tag; os arquivos do repositório continuam como estão
+      - name: Versão nos manifestos
+        run: |
+          for f in core/Cargo.toml gui/src-tauri/Cargo.toml; do
+            sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" "$f"
+          done
+          jq --arg v "$VERSION" '.version = $v' gui/src-tauri/tauri.conf.json > tauri.conf.tmp
+          mv tauri.conf.tmp gui/src-tauri/tauri.conf.json
+          (cd gui && npm pkg set version="$VERSION")
+          grep -m1 '^version' gui/src-tauri/Cargo.toml
+
+      # o registro do npm às vezes derruba a conexão nos runners: tenta de novo
+      - name: npm ci
+        working-directory: gui
+        run: |
+          for i in 1 2 3; do
+            npm ci && exit 0
+            echo "npm ci falhou (tentativa $i), tentando de novo…"
+            sleep $((i * 15))
+          done
+          exit 1
+
+      - name: Testes
+        run: cargo test --workspace
+
+      - name: App gráfico (deb, rpm, AppImage)
+        working-directory: gui
+        run: npx tauri build --bundles deb,rpm,appimage
+
+      - name: Juntar os arquivos
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          B=target/release/bundle
+          cp "$B/deb/sshdeck_${VERSION}_amd64.deb" dist/
+          cp "$B/rpm/sshdeck-${VERSION}-1.x86_64.rpm" dist/
+          cp "$B/appimage/sshdeck_${VERSION}_amd64.AppImage" dist/
+
+          # Arch: mesmo conteúdo do .deb, com as dependências com os nomes do Arch
+          mkdir arch-root
+          dpkg-deb -x "dist/sshdeck_${VERSION}_amd64.deb" arch-root
+          fpm -s dir -t pacman -C arch-root \
+            -n sshdeck -v "$VERSION" --iteration 1 -a x86_64 \
+            --description "Gerenciador de conexões SSH e RDP" \
+            --url "https://github.com/${GITHUB_REPOSITORY}" \
+            --maintainer "gabrielwsa" \
+            -d webkit2gtk-4.1 -d gtk3 -d openssh -d rsync \
+            --pacman-compression zstd \
+            -p "dist/sshdeck-${VERSION}-1-x86_64.pkg.tar.zst" \
+            usr
+
+          cd dist
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Notas da versão
+        run: |
+          {
+            echo "## Downloads"
+            echo
+            echo "| Sistema | Arquivo | Instalar |"
+            echo "|---|---|---|"
+            echo "| **Arch** | \`sshdeck-${VERSION}-1-x86_64.pkg.tar.zst\` | \`sudo pacman -U sshdeck-*.pkg.tar.zst\` |"
+            echo "| **Debian, Ubuntu, Mint…** | \`sshdeck_${VERSION}_amd64.deb\` | \`sudo apt install ./sshdeck_*.deb\` |"
+            echo "| **Fedora, openSUSE…** | \`sshdeck-${VERSION}-1.x86_64.rpm\` | \`sudo dnf install ./sshdeck-*.rpm\` |"
+            echo "| **Qualquer distro** | \`sshdeck_${VERSION}_amd64.AppImage\` | \`chmod +x sshdeck_*.AppImage\` e abrir |"
+            echo
+            echo "Depois de instalado, o app avisa sozinho quando sair uma versão nova."
+          } > notes.md
+          cat notes.md
+
+      # um release da mesma versão (de um build anterior) é refeito do zero
+      - name: Publicar o release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$VERSION"
+          # 1.0.0-rc.1 e afins saem como pré-lançamento: o atualizador do app os ignora
+          case "$VERSION" in
+            *-*) KIND=--prerelease ;;
+            *) KIND=--latest ;;
+          esac
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" dist/* \
+            --title "sshdeck $VERSION" \
+            --notes-file notes.md \
+            --target "$GITHUB_SHA" \
+            "$KIND"

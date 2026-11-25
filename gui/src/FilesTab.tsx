@@ -55,7 +55,8 @@ type Dialog =
   | { kind: "mkdir"; side: number }
   | { kind: "rename"; side: number; entry: FileEntry }
   | { kind: "delete"; side: number; items: FileEntry[] }
-  | { kind: "overwrite"; from: number; items: FileEntry[]; names: string[] };
+  | { kind: "overwrite"; from: number; items: FileEntry[]; names: string[] }
+  | { kind: "disconnect" };
 
 const emptyPane = (): Pane => ({
   path: "",
@@ -112,6 +113,8 @@ type Props = {
   /** a conexão não abriu (a aba fecha e o motivo vai para a barra de status) */
   onFail: (err: string) => void;
   onReady: () => void;
+  /** botão Desconectar: fecha a aba e volta para a tela do host */
+  onDisconnect: () => void;
   onClick: () => void;
 };
 
@@ -119,7 +122,17 @@ type Props = {
  * Navegador de arquivos em duas colunas: à esquerda o computador, à direita o servidor (SFTP ou
  * FTP). Copia arrastando entre as colunas, com duplo clique num arquivo ou com F5.
  */
-export default function FilesTab({ alias, proto, visible, focused, onStatus, onFail, onReady, onClick }: Props) {
+export default function FilesTab({
+  alias,
+  proto,
+  visible,
+  focused,
+  onStatus,
+  onFail,
+  onReady,
+  onDisconnect,
+  onClick,
+}: Props) {
   const [rid, setRid] = useState<number | null>(null);
   const [panes, setPanes] = useState<[Pane, Pane]>([emptyPane(), emptyPane()]);
   const [side, setSide] = useState(1);
@@ -132,6 +145,8 @@ export default function FilesTab({ alias, proto, visible, focused, onStatus, onF
   const lists = [useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null)];
   const anchor = useRef<[number, number]>([0, 0]);
   const ridRef = useRef<number | null>(null);
+  // A cópia já pode estar rodando no Rust antes de filesCopy devolver o id.
+  const activeCopies = useRef(new Set<{ id?: number }>());
   // o load lê sempre os valores atuais (é chamado de callbacks antigos, como o fim de uma cópia)
   const opts = useRef({ limit, hidden, panes });
   opts.current = { limit, hidden, panes };
@@ -187,6 +202,16 @@ export default function FilesTab({ alias, proto, visible, focused, onStatus, onF
     }
   }, []);
 
+  const closeConnection = useCallback(() => {
+    const id = ridRef.current;
+    ridRef.current = null;
+    for (const copy of activeCopies.current) {
+      if (copy.id !== undefined) void filesCancel(copy.id);
+    }
+    activeCopies.current.clear();
+    if (id !== null) void filesClose(id);
+  }, []);
+
   // conecta ao abrir a aba e fecha a conexão ao sair
   useEffect(() => {
     let closed = false;
@@ -203,9 +228,19 @@ export default function FilesTab({ alias, proto, visible, focused, onStatus, onF
     );
     return () => {
       closed = true;
-      if (ridRef.current !== null) void filesClose(ridRef.current);
+      closeConnection();
     };
-  }, [alias, proto, load]);
+  }, [alias, proto, load, closeConnection]);
+
+  function disconnect() {
+    closeConnection();
+    onDisconnect();
+  }
+
+  function requestDisconnect() {
+    if (activeCopies.current.size) setDialog({ kind: "disconnect" });
+    else disconnect();
+  }
 
   useEffect(() => {
     if (visible && focused && !dialog) lists[side].current?.focus();
@@ -240,7 +275,8 @@ export default function FilesTab({ alias, proto, visible, focused, onStatus, onF
 
   /** Copia para a pasta aberta na outra coluna; pergunta antes de sobrescrever. */
   async function copy(from: number, items: FileEntry[], force = false) {
-    if (!items.length || ridRef.current === null) return;
+    const rid = ridRef.current;
+    if (!items.length || rid === null) return;
     const to = 1 - from;
     if (!force) {
       // pergunta ao destino (a lista na tela pode estar cortada pelo limite)
@@ -250,15 +286,26 @@ export default function FilesTab({ alias, proto, visible, focused, onStatus, onF
       } catch {
         names = items.map((i) => i.name).filter((n) => panes[to].entries.some((e) => e.name === n));
       }
-      if (names.length) return setDialog({ kind: "overwrite", from, items, names });
+      if (ridRef.current !== rid) return;
+      if (names.length)
+        return setDialog((d) => (d?.kind === "disconnect" ? d : { kind: "overwrite", from, items, names }));
     }
     const upload = from === 0;
     const dest = panes[to].path;
     const label =
       items.length === 1 ? items[0].name : t("files.n_items", { n: items.length });
     const channel = new Channel<CopyEvent>();
-    let jobId = 0;
-    channel.onmessage = (ev) => {
+    const pending: { id?: number } = {};
+    activeCopies.current.add(pending);
+    const earlyEvents: CopyEvent[] = [];
+    const onCopyEvent = (ev: CopyEvent) => {
+      if (!activeCopies.current.has(pending)) return;
+      const jobId = pending.id;
+      if (jobId === undefined) {
+        earlyEvents.push(ev);
+        return;
+      }
+      if (ev.type === "finished") activeCopies.current.delete(pending);
       setJobs((js) =>
         js.map((j) => {
           if (j.id !== jobId) return j;
@@ -277,9 +324,12 @@ export default function FilesTab({ alias, proto, visible, focused, onStatus, onF
         }
       }
     };
-    filesCopy(ridRef.current, upload, items.map((i) => ({ path: i.path, dir: i.dir })), dest, channel).then(
+    channel.onmessage = onCopyEvent;
+    filesCopy(rid, upload, items.map((i) => ({ path: i.path, dir: i.dir })), dest, channel).then(
       (id) => {
-        jobId = id;
+        // Se a aba fechou enquanto o comando estava pendente, cancela assim que o id chegar.
+        if (!activeCopies.current.has(pending)) return void filesCancel(id);
+        pending.id = id;
         setJobs((js) => [
           ...js,
           {
@@ -298,8 +348,13 @@ export default function FilesTab({ alias, proto, visible, focused, onStatus, onF
             dest,
           },
         ]);
+        for (const ev of earlyEvents) onCopyEvent(ev);
+        earlyEvents.length = 0;
       },
-      (e) => cb.current.onStatus(t("files.copy_failed", { name: label, err: String(e) })),
+      (e) => {
+        if (activeCopies.current.delete(pending))
+          cb.current.onStatus(t("files.copy_failed", { name: label, err: String(e) }));
+      },
     );
   }
 
@@ -367,6 +422,7 @@ export default function FilesTab({ alias, proto, visible, focused, onStatus, onF
       setDialog({ kind: "delete", side: s, items: targets(s) });
     else if (e.ctrlKey && (k === "h" || k === "H")) setHidden((h) => !h);
     else if (e.ctrlKey && (k === "f" || k === "F")) filterInputs[s].current?.focus();
+    else if (e.ctrlKey && (k === "d" || k === "D")) requestDisconnect();
     else if (k === "Escape" && p.filter) setFilter(s, "", true);
     else if (e.ctrlKey && (k === "r" || k === "R")) void load(s, p.path, true);
     else if (e.ctrlKey && (k === "l" || k === "L")) setPathEdit((pe) => (s === 0 ? [p.path, pe[1]] : [pe[0], p.path]));
@@ -431,10 +487,21 @@ export default function FilesTab({ alias, proto, visible, focused, onStatus, onF
         }}
       >
         <div className="fhead">
-          <span className="ftitle">
-            <span className="nf">{remote ? (proto === "ftp" ? ICON.globe : ICON.server) : ICON.laptop}</span>{" "}
-            {title}
-          </span>
+          <div className="ftitle-row">
+            <span className="ftitle">
+              <span className="nf">{remote ? (proto === "ftp" ? ICON.globe : ICON.server) : ICON.laptop}</span>{" "}
+              {title}
+            </span>
+            {remote && (
+              <button
+                className="btn small danger"
+                title={`${t("gui.disconnect")} (Ctrl+D)`}
+                onClick={requestDisconnect}
+              >
+                <span className="nf">{ICON.power}</span> {t("gui.disconnect")}
+              </button>
+            )}
+          </div>
           <div className="fpath">
             <button className="icon-btn" title={`${t("files.up")} (Backspace)`} onClick={() => void load(s, parent(p.path))}>
               {ICON.up}
@@ -683,6 +750,16 @@ export default function FilesTab({ alias, proto, visible, focused, onStatus, onF
           onYes={() =>
             act(() => filesRemove(idOf(d.side), d.items.map((i) => ({ path: i.path, dir: i.dir && !i.link }))), d.side)
           }
+        />
+      )}
+      {d?.kind === "disconnect" && (
+        <Confirm
+          title={t("gui.disconnect")}
+          text={t("files.disconnect_q")}
+          yes={t("gui.disconnect")}
+          danger
+          onNo={() => setDialog(null)}
+          onYes={disconnect}
         />
       )}
       {d?.kind === "overwrite" && (

@@ -96,6 +96,10 @@ direita (`Alt+I`). Tudo tem botão e atalho de teclado (`?` mostra a lista).
   abre `ssh -N -L` por esse host (com a senha dele) e conecta o RDP através do túnel.
 - Se a tela vier com defeito num servidor, `SSHDECK_RDP_CODECS=remotefx:off` desliga a
   compressão RemoteFX.
+- **Área de transferência compartilhada (texto):** o que você copia no Windows vai para o
+  clipboard do Linux, e o que copia no Linux fica disponível para colar no Windows (conferido a
+  cada segundo e ao voltar para a aba). Senhas copiadas pelo botão **Copiar senha** do sshdeck
+  não vão para o Windows, para não ficarem no histórico de clipboard dele (`Win+V`).
 
 ## Idiomas
 
@@ -160,6 +164,7 @@ como pré-lançamento e o atualizador do app não as oferece.
 - No `K`, no rsync, na coleta de informações e no túnel do RDP, a senha do host vai por variável
   de ambiente (`SSHDECK_ASKPASS_PW`) para o `ssh` em segundo plano, enquanto ele roda. Outros
   usuários não a leem, mas o seu usuário e o root sim.
-- RDP sem clipboard compartilhado, som e pastas compartilhadas, por enquanto.
+- RDP: a área de transferência compartilha só texto (imagens e arquivos não); sem som e sem
+  pastas compartilhadas, por enquanto.
 - Fechar o app cancela os rsync em andamento (ele pergunta antes).
 - Não há bloqueio automático por inatividade.

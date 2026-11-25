@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 /** Eventos da sessão RDP (o Rust manda, ver rdpview.rs). */
@@ -20,6 +20,15 @@ type Input =
   | { t: "resize"; w: number; h: number };
 
 const send = (id: number, input: Input) => invoke("rdp_input", { id, input }).catch(() => {});
+
+// Todas as abas usam a mesma revisão, pois a ordem de chegada das chamadas IPC pode variar.
+let clipboardOwner: number | null = null;
+let clipboardRevision = 0;
+function setClipboardFocus(id: number, active: boolean) {
+  if (active === (clipboardOwner === id)) return;
+  clipboardOwner = active ? id : null;
+  void invoke("rdp_clipboard_focus", { id: clipboardOwner, revision: ++clipboardRevision }).catch(() => {});
+}
 
 // KeyboardEvent.code → scancode do teclado PC (conjunto 1); 0x100 = tecla estendida (E0).
 // O Windows aplica o layout da conta, então as teclas físicas (ABNT2, latino...) funcionam.
@@ -78,6 +87,32 @@ export default forwardRef<RdpHandle, Props>(function RdpTab(
 
   useImperativeHandle(ref, () => ({ id: () => sid.current }));
 
+  const active = useRef(false);
+  useEffect(() => {
+    // Ao voltar de outro app, confere já o que foi copiado lá.
+    const onFocus = () => {
+      if (sid.current !== null) setClipboardFocus(sid.current, active.current);
+    };
+    const onBlur = () => {
+      if (sid.current !== null) setClipboardFocus(sid.current, false);
+    };
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    active.current = visible && focused;
+    if (sid.current !== null) setClipboardFocus(sid.current, active.current && document.hasFocus());
+    return () => {
+      active.current = false;
+      if (sid.current !== null) setClipboardFocus(sid.current, false);
+    };
+  }, [visible, focused]);
+
   useEffect(() => {
     const el = canvas.current!;
     const ctx = el.getContext("2d")!;
@@ -124,6 +159,7 @@ export default forwardRef<RdpHandle, Props>(function RdpTab(
       .then((id) => {
         if (closed) return void invoke("rdp_close", { id });
         sid.current = id;
+        setClipboardFocus(id, active.current && document.hasFocus());
       })
       .catch((err) => cb.current({ type: "ended", error: String(err) }));
 
@@ -147,7 +183,11 @@ export default forwardRef<RdpHandle, Props>(function RdpTab(
       closed = true;
       observer.disconnect();
       clearTimeout(timer);
-      if (sid.current !== null) void invoke("rdp_close", { id: sid.current });
+      if (sid.current !== null) {
+        setClipboardFocus(sid.current, false);
+        void invoke("rdp_close", { id: sid.current });
+        sid.current = null;
+      }
     };
   }, [alias, resolution]);
 

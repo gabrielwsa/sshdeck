@@ -192,10 +192,18 @@ export default forwardRef<RdpHandle, Props>(function RdpTab(
   }, [alias, resolution]);
 
   useEffect(() => {
-    if (visible && focused) {
-      canvas.current?.focus();
-      needSync.current = true;
-    } else canvas.current?.blur();
+    if (!(visible && focused)) {
+      canvas.current?.blur();
+      return;
+    }
+    const el = canvas.current;
+    el?.focus();
+    needSync.current = true;
+    // Este efeito roda dentro do mousedown que trocou de aba; o navegador move o foco para o
+    // elemento clicado logo depois, e o teclado deixaria de chegar ao Windows. Foca de novo
+    // quando o clique terminar.
+    const timer = window.setTimeout(() => el?.focus(), 0);
+    return () => clearTimeout(timer);
   }, [visible, focused]);
 
   /** Posição do mouse em pixels da área de trabalho (o canvas é escalado com object-fit). */

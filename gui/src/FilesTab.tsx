@@ -55,7 +55,7 @@ type Dialog =
   | { kind: "mkdir"; side: number }
   | { kind: "rename"; side: number; entry: FileEntry }
   | { kind: "delete"; side: number; items: FileEntry[] }
-  | { kind: "overwrite"; from: number; items: FileEntry[]; names: string[] }
+  | { kind: "overwrite"; from: number; items: FileEntry[]; names: string[]; dest: string }
   | { kind: "disconnect" };
 
 const emptyPane = (): Pane => ({
@@ -119,8 +119,8 @@ type Props = {
 };
 
 /**
- * Navegador de arquivos em duas colunas: à esquerda o computador, à direita o servidor (SFTP ou
- * FTP). Copia arrastando entre as colunas, com duplo clique num arquivo ou com F5.
+ * Navegador de arquivos em duas colunas: à esquerda o computador, à direita o servidor (SFTP,
+ * FTP ou SMB). Copia arrastando entre as colunas, com duplo clique num arquivo ou com F5.
  */
 export default function FilesTab({
   alias,
@@ -145,6 +145,8 @@ export default function FilesTab({
   const lists = [useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null)];
   const anchor = useRef<[number, number]>([0, 0]);
   const ridRef = useRef<number | null>(null);
+  // Independente da área de transferência do sistema e das outras abas.
+  const fileClipboard = useRef<{ from: number; items: FileEntry[] } | null>(null);
   // A cópia já pode estar rodando no Rust antes de filesCopy devolver o id.
   const activeCopies = useRef(new Set<{ id?: number }>());
   // o load lê sempre os valores atuais (é chamado de callbacks antigos, como o fim de uma cópia)
@@ -158,6 +160,11 @@ export default function FilesTab({
   cb.current = { onStatus, onFail, onReady };
 
   const idOf = (s: number) => (s === 0 ? null : ridRef.current);
+  // A raiz SMB lista compartilhamentos, não arquivos de uma pasta.
+  const shareList = proto === "smb" && panes[1].path === "/";
+  // As permissões reais do compartilhamento são verificadas pelo servidor.
+  const remoteWritable =
+    proto !== "smb" || (!!panes[1].path && !shareList && !panes[1].loading && !panes[1].error);
   // ocultos, filtro e limite já vêm aplicados do Rust
   const shown = (p: Pane) => p.entries;
 
@@ -170,9 +177,10 @@ export default function FilesTab({
 
   /**
    * Lista a pasta. `keepSel`: recarga da mesma pasta (mantém seleção e quantos já tinham sido
-   * carregados); `more`: "Carregar mais", pede mais um bloco do limite.
+   * carregados); `more`: "Carregar mais", pede mais um bloco do limite. `cached`: a pasta não
+   * mudou (mais itens, filtro, opções); o servidor remoto não é consultado de novo.
    */
-  const load = useCallback(async (s: number, path: string, keepSel = false, more = false) => {
+  const load = useCallback(async (s: number, path: string, keepSel = false, more = false, cached = more) => {
     const { limit, hidden, panes } = opts.current;
     const cur = panes[s];
     const samePath = cur.path === path;
@@ -183,7 +191,7 @@ export default function FilesTab({
       limit === 0 ? 0 : more ? cur.entries.length + limit : keepSel && samePath ? Math.max(limit, cur.entries.length) : limit;
     setPane(s, (p) => ({ ...p, loading: true, error: "" }));
     try {
-      const r = await filesList(s === 0 ? null : ridRef.current, path, { limit: want, filter, hidden });
+      const r = await filesList(s === 0 ? null : ridRef.current, path, { limit: want, filter, hidden, cached });
       setPane(s, (p) => {
         const same = p.path === r.path;
         return {
@@ -205,6 +213,7 @@ export default function FilesTab({
   const closeConnection = useCallback(() => {
     const id = ridRef.current;
     ridRef.current = null;
+    fileClipboard.current = null;
     for (const copy of activeCopies.current) {
       if (copy.id !== undefined) void filesCancel(copy.id);
     }
@@ -277,21 +286,29 @@ export default function FilesTab({
   async function copy(from: number, items: FileEntry[], force = false) {
     const rid = ridRef.current;
     if (!items.length || rid === null) return;
+    if (from === 0 && !remoteWritable) {
+      if (shareList) cb.current.onStatus(t("files.smb_pick_share"));
+      return;
+    }
+    if (from === 1 && proto === "smb" && items.some((item) => parent(item.path) === "/")) return;
     const to = 1 - from;
+    const dest = panes[to].path;
     if (!force) {
       // pergunta ao destino (a lista na tela pode estar cortada pelo limite)
       let names: string[] = [];
       try {
-        names = await filesExisting(idOf(to), panes[to].path, items.map((i) => i.name));
+        names = await filesExisting(idOf(to), dest, items.map((i) => i.name));
       } catch {
         names = items.map((i) => i.name).filter((n) => panes[to].entries.some((e) => e.name === n));
       }
       if (ridRef.current !== rid) return;
-      if (names.length)
-        return setDialog((d) => (d?.kind === "disconnect" ? d : { kind: "overwrite", from, items, names }));
+      if (names.length) {
+        // Não deixa uma confirmação autorizar a escrita em outra pasta.
+        if (opts.current.panes[to].path !== dest || opts.current.panes[to].loading) return;
+        return setDialog((d) => (d?.kind === "disconnect" ? d : { kind: "overwrite", from, items, names, dest }));
+      }
     }
     const upload = from === 0;
-    const dest = panes[to].path;
     const label =
       items.length === 1 ? items[0].name : t("files.n_items", { n: items.length });
     const channel = new Channel<CopyEvent>();
@@ -314,7 +331,8 @@ export default function FilesTab({
         }),
       );
       if (ev.type === "finished") {
-        void load(to, panes[to].path, true);
+        const current = opts.current.panes[to];
+        if (current.path === dest && !current.loading) void load(to, dest, true);
         if (ev.error) cb.current.onStatus(t("files.copy_failed", { name: label, err: ev.error }));
         else if (ev.cancelled) cb.current.onStatus(t("files.copy_cancelled", { name: label }));
         else {
@@ -383,6 +401,7 @@ export default function FilesTab({
     const p = panes[s];
     const list = shown(p);
     const k = e.key;
+    const fileShortcut = proto === "smb" && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
     const moveTo = (idx: number) => {
       const i = Math.max(0, Math.min(list.length - 1, idx));
       if (e.shiftKey) select(s, i, { ctrlKey: false, shiftKey: true });
@@ -415,12 +434,25 @@ export default function FilesTab({
         }));
     } else if (e.ctrlKey && (k === "a" || k === "A"))
       setPane(s, (x) => ({ ...x, sel: list.map((y) => y.path) }));
-    else if (k === "F5") copy(s, targets(s));
-    else if (k === "F7") setDialog({ kind: "mkdir", side: s });
-    else if (k === "F2" && list[p.cursor]) setDialog({ kind: "rename", side: s, entry: list[p.cursor] });
-    else if ((k === "Delete" || k === "F8") && targets(s).length)
-      setDialog({ kind: "delete", side: s, items: targets(s) });
-    else if (e.ctrlKey && (k === "h" || k === "H")) setHidden((h) => !h);
+    else if (fileShortcut && k.toLowerCase() === "c") {
+      const items = targets(s);
+      if ((s === 1 && shareList) || !items.length || window.getSelection()?.isCollapsed === false) handled = false;
+      else if (!e.repeat) {
+        fileClipboard.current = { from: s, items };
+        cb.current.onStatus(t("files.copied", { n: items.length }));
+      }
+    } else if (fileShortcut && k.toLowerCase() === "v") {
+      const clip = fileClipboard.current;
+      if (!clip || clip.from === s) handled = false;
+      else if (!e.repeat) void copy(clip.from, clip.items);
+    } else if (k === "F5") copy(s, targets(s));
+    else if (k === "F7") {
+      if (s === 0 || remoteWritable) setDialog({ kind: "mkdir", side: s });
+    } else if (k === "F2" && list[p.cursor]) {
+      if (s === 0 || remoteWritable) setDialog({ kind: "rename", side: s, entry: list[p.cursor] });
+    } else if ((k === "Delete" || k === "F8") && targets(s).length) {
+      if (s === 0 || remoteWritable) setDialog({ kind: "delete", side: s, items: targets(s) });
+    } else if (e.ctrlKey && (k === "h" || k === "H")) setHidden((h) => !h);
     else if (e.ctrlKey && (k === "f" || k === "F")) filterInputs[s].current?.focus();
     else if (e.ctrlKey && (k === "d" || k === "D")) requestDisconnect();
     else if (k === "Escape" && p.filter) setFilter(s, "", true);
@@ -438,7 +470,7 @@ export default function FilesTab({
     setPane(s, (p) => ({ ...p, filter: value }));
     filters.current[s] = value;
     window.clearTimeout(filterTimer.current);
-    const run = () => void load(s, opts.current.panes[s].path, true);
+    const run = () => void load(s, opts.current.panes[s].path, true, false, true);
     if (now) run();
     else filterTimer.current = window.setTimeout(run, 250);
   }
@@ -451,8 +483,8 @@ export default function FilesTab({
       return;
     }
     localStorage.setItem(LIMIT_KEY, String(limit));
-    if (opts.current.panes[0].path) void load(0, opts.current.panes[0].path);
-    if (ridRef.current !== null && opts.current.panes[1].path) void load(1, opts.current.panes[1].path);
+    if (opts.current.panes[0].path) void load(0, opts.current.panes[0].path, false, false, true);
+    if (ridRef.current !== null && opts.current.panes[1].path) void load(1, opts.current.panes[1].path, false, false, true);
   }, [hidden, limit, load]);
 
   async function act(f: () => Promise<unknown>, s: number) {
@@ -469,6 +501,7 @@ export default function FilesTab({
     const p = panes[s];
     const list = shown(p);
     const remote = s === 1;
+    const canWrite = !remote || remoteWritable;
     const editing = pathEdit[s];
     const title = remote ? `${proto.toUpperCase()} · ${alias}` : t("files.local");
     return (
@@ -476,7 +509,7 @@ export default function FilesTab({
         className={`fpane${side === s ? " active" : ""}`}
         onMouseDown={() => setSide(s)}
         onDragOver={(e) => {
-          if (e.dataTransfer.types.includes(`sshdeck/from-${1 - s}`)) e.preventDefault();
+          if (canWrite && e.dataTransfer.types.includes(`sshdeck/from-${1 - s}`)) e.preventDefault();
         }}
         onDrop={(e) => {
           const raw = e.dataTransfer.getData(`sshdeck/from-${1 - s}`);
@@ -541,7 +574,12 @@ export default function FilesTab({
             <button className="icon-btn" title={`${t("files.refresh")} (Ctrl+R)`} onClick={() => void load(s, p.path, true)}>
               {ICON.refresh}
             </button>
-            <button className="icon-btn" title={`${t("files.mkdir")} (F7)`} onClick={() => setDialog({ kind: "mkdir", side: s })}>
+            <button
+              className="icon-btn"
+              title={`${t("files.mkdir")} (F7)`}
+              disabled={!canWrite}
+              onClick={() => setDialog({ kind: "mkdir", side: s })}
+            >
               {ICON.folderPlus}
             </button>
           </div>
@@ -592,7 +630,7 @@ export default function FilesTab({
               <div
                 key={e.path}
                 className={`frow${p.sel.includes(e.path) ? " sel" : ""}${i === p.cursor && side === s ? " cursor" : ""}`}
-                draggable
+                draggable={!remote || !shareList}
                 onDragStart={(ev) => {
                   const items = p.sel.includes(e.path) ? p.sel : [e.path];
                   ev.dataTransfer.setData(`sshdeck/from-${s}`, JSON.stringify(items));
@@ -662,8 +700,8 @@ export default function FilesTab({
         <div className="fmiddle">
           <button
             className="icon-btn"
-            title={`${t("files.upload")} (F5)`}
-            disabled={rid === null}
+            title={shareList ? t("files.smb_pick_share") : `${t("files.upload")} (F5)`}
+            disabled={rid === null || !remoteWritable}
             onClick={() => copy(0, targets(0))}
           >
             {ICON.right}
@@ -671,7 +709,7 @@ export default function FilesTab({
           <button
             className="icon-btn"
             title={`${t("files.download")} (F5)`}
-            disabled={rid === null}
+            disabled={rid === null || shareList}
             onClick={() => copy(1, targets(1))}
           >
             {ICON.left}
@@ -770,7 +808,7 @@ export default function FilesTab({
           onNo={() => setDialog(null)}
           onYes={() => {
             setDialog(null);
-            copy(d.from, d.items, true);
+            if (panes[1 - d.from].path === d.dest && !panes[1 - d.from].loading) copy(d.from, d.items, true);
           }}
         />
       )}

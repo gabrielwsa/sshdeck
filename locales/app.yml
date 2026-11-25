@@ -1224,3 +1224,19 @@ files.disconnect_q:
   pt: "Há cópias em andamento. Desconectar cancela todas."
   en: "There are copies in progress. Disconnecting cancels them all."
   es: "Hay copias en curso. Desconectar las cancela todas."
+files.smb:
+  pt: "Arquivos (SMB)"
+  en: "Files (SMB)"
+  es: "Archivos (SMB)"
+files.smb_pick_share:
+  pt: "Abra um compartilhamento SMB para enviar arquivos."
+  en: "Open an SMB share to upload files."
+  es: "Abre un recurso compartido SMB para subir archivos."
+files.copied:
+  pt: "Itens copiados: %{n}. Cole na outra coluna."
+  en: "Items copied: %{n}. Paste in the other pane."
+  es: "Elementos copiados: %{n}. Pega en el otro panel."
+files.h_clipboard:
+  pt: "copiar / colar"
+  en: "copy / paste"
+  es: "copiar / pegar"

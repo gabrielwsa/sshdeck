@@ -139,7 +139,7 @@ export const updateOpenPage = () => invoke<void>("update_open_page");
 
 // --- navegador de arquivos (gui/src-tauri/src/files.rs) ---
 
-export type FileProto = "sftp" | "ftp";
+export type FileProto = "sftp" | "ftp" | "smb";
 export type FileEntry = {
   name: string;
   path: string;
@@ -170,7 +170,7 @@ export const filesClose = (id: number) => invoke<void>("files_close", { id });
 export const filesList = (
   id: number | null,
   path: string,
-  opts: { limit: number; filter: string; hidden: boolean },
+  opts: { limit: number; filter: string; hidden: boolean; cached?: boolean },
 ) => invoke<FileListing>("files_list", { id, path, ...opts });
 /** quais destes nomes já existem na pasta */
 export const filesExisting = (id: number | null, dir: string, names: string[]) =>

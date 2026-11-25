@@ -320,7 +320,7 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
     setModal({ kind: "transfer", alias: h.alias });
   }
 
-  /** Escolha no menu "Transferir": rsync abre o popup; SFTP/FTP, o navegador de arquivos. */
+  /** rsync abre o popup; os demais protocolos abrem o navegador de arquivos. */
   function pickTransfer(h: Host, c: "rsync" | FileProto) {
     setXferMenu(false);
     if (c === "rsync") return openTransfer(h);
@@ -542,6 +542,9 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
           ["Ctrl+D", t("gui.disconnect").toLowerCase()],
           ["Tab", t("files.h_side")],
           ["F5", t("files.h_copy")],
+          ...(activeSession!.proto === "smb"
+            ? [["Ctrl+C / Ctrl+V", t("files.h_clipboard")] as [string, string]]
+            : []),
           ["F7", t("files.mkdir").toLowerCase()],
           ["F2", t("files.rename").toLowerCase()],
           ["Del", t("gui.delete").toLowerCase()],
@@ -786,6 +789,7 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
                 session={activeSession}
                 onTypePw={() => typePw(panelHost.alias)}
                 onCopy={() => copy(panelHost)}
+                onSmb={() => pickTransfer(panelHost, "smb")}
                 onDisconnect={() => closeSession(panelHost.alias)}
               />
             )}
@@ -1172,7 +1176,7 @@ function HostDetail({
           >
             <span className="nf">{ICON.copy}</span> {t("gui.copy_pw")}
           </button>
-          {ssh && (
+          {ssh ? (
             <>
               <button className="btn" title="ssh-copy-id (K)" onClick={onCopyId}>
                 <span className="nf">{ICON.key}</span> ssh-copy-id
@@ -1197,6 +1201,8 @@ function HostDetail({
                 {collecting ? t("gui.collecting") : t("gui.collect")}
               </button>
             </>
+          ) : (
+            <SmbButton onClick={() => onPickTransfer("smb")} />
           )}
           <span className="sep" />
           <button className="btn ghost" title={`${t("gui.edit")} (e)`} onClick={onEdit}>
@@ -1282,17 +1288,27 @@ function sshConfigBlock(h: Host) {
   return lines.join("\n");
 }
 
+function SmbButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button className="btn" onClick={onClick}>
+      <span className="nf">{ICON.folder}</span> {t("files.smb")}
+    </button>
+  );
+}
+
 function SessionPanel({
   h,
   session,
   onTypePw,
   onCopy,
+  onSmb,
   onDisconnect,
 }: {
   h: Host;
   session: Session;
   onTypePw: () => void;
   onCopy: () => void;
+  onSmb: () => void;
   onDisconnect: () => void;
 }) {
   const server = serverRows(h);
@@ -1317,6 +1333,7 @@ function SessionPanel({
         <button className="btn" disabled={!h.hasPassword} onClick={onCopy}>
           <span className="nf">{ICON.copy}</span> {t("gui.copy_pw")}
         </button>
+        {h.kind === "rdp" && <SmbButton onClick={onSmb} />}
         <button className="btn danger" onClick={onDisconnect}>
           <span className="nf">{ICON.power}</span> {t("gui.disconnect")}
         </button>

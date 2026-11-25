@@ -3,7 +3,7 @@ import { type FileProto, type FilesProbe, filesProbe } from "./api";
 import { t } from "./i18n";
 import { ICON } from "./ui";
 
-type Choice = "rsync" | FileProto;
+type Choice = "rsync" | Exclude<FileProto, "smb">;
 
 /**
  * Botão "Transferir" dos detalhes do host: rsync (popup), SFTP e FTP (navegador de arquivos em

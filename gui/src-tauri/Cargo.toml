@@ -39,3 +39,6 @@ russh-sftp = "4"
 suppaftp = { version = "13", features = ["tokio"] }
 openssl = "0.10"
 tokio-openssl = "0.6"
+# SMB2/3 client; pure Rust, so no extra system packages are required.
+smolder-smb-core = "0.4"
+smolder-proto = "0.4"

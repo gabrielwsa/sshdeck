@@ -539,6 +539,7 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
     inSession && termFocus && activeSession!.kind === "files"
       ? [
           ["Ctrl+]", t("h.panel")],
+          ["Ctrl+D", t("gui.disconnect").toLowerCase()],
           ["Tab", t("files.h_side")],
           ["F5", t("files.h_copy")],
           ["F7", t("files.mkdir").toLowerCase()],
@@ -733,6 +734,14 @@ function Main({ hosts, setHosts }: { hosts: Host[]; setHosts: (h: Host[]) => voi
                     onFail={(err) => {
                       setSessions((ss) => ss.filter((x) => x.key !== s.key));
                       setStatus(t("files.open_failed", { proto: s.proto!.toUpperCase(), alias: s.alias, err }));
+                    }}
+                    onDisconnect={() => {
+                      // fecha a aba e volta para a tela do host
+                      setSessions((ss) => ss.filter((x) => x.key !== s.key));
+                      select(s.alias);
+                      setView("host");
+                      setTermFocus(false);
+                      setStatus(t("files.disconnected", { proto: s.proto!.toUpperCase(), alias: s.alias }));
                     }}
                     onClick={() => setTermFocus(true)}
                   />

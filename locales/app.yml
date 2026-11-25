@@ -1216,3 +1216,11 @@ files.help_f:
   pt: "transferir: rsync, SFTP ou FTP (navegador de arquivos)"
   en: "transfer: rsync, SFTP or FTP (file browser)"
   es: "transferir: rsync, SFTP o FTP (explorador de archivos)"
+files.disconnected:
+  pt: "%{proto} desconectado de %{alias}"
+  en: "%{proto} disconnected from %{alias}"
+  es: "%{proto} desconectado de %{alias}"
+files.disconnect_q:
+  pt: "Há cópias em andamento. Desconectar cancela todas."
+  en: "There are copies in progress. Disconnecting cancels them all."
+  es: "Hay copias en curso. Desconectar las cancela todas."

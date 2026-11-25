@@ -4,6 +4,7 @@
 mod clip;
 mod files;
 mod pty;
+mod rdpclip;
 mod rdpview;
 mod update;
 
@@ -41,6 +42,7 @@ struct AppState {
     clip: Mutex<clip::Clip>,
     /// sessões RDP embutidas (IronRDP), por id da aba
     rdps: Mutex<HashMap<u32, rdpview::RdpView>>,
+    rdp_clip_focus: rdpclip::Focus,
     transfers: Mutex<Vec<Transfer>>,
     listers: Mutex<HashMap<u32, RemoteLister>>,
 }
@@ -383,8 +385,10 @@ fn rdp_open(
         )
     };
     let known = host.rdp_cert.clone();
-    let view = rdpview::RdpView::start(host, gateway, width, height, known, on_frame, on_event);
     let id = state.next_id.fetch_add(1, Ordering::Relaxed);
+    let view = rdpview::RdpView::start(
+        host, gateway, width, height, known, on_frame, on_event, id, state.rdp_clip_focus.clone(),
+    );
     state.rdps.lock().unwrap().insert(id, view);
     drop(mark_used(state, alias));
     Ok(id)
@@ -418,6 +422,23 @@ fn rdp_input(state: State<AppState>, id: u32, input: RdpInput) {
     }
 }
 
+/// Informa a única aba que pode usar o clipboard; `None` suspende todas.
+/// Não espera pela área de transferência na thread da janela (ela pode ser dona da seleção X11).
+#[tauri::command]
+async fn rdp_clipboard_focus(state: State<'_, AppState>, id: Option<u32>, revision: u64) -> Res<()> {
+    if state.rdp_clip_focus.update(id, revision)
+        && let Some(id) = id
+    {
+        let found = state.rdps.lock().unwrap().get(&id).map(|view| {
+            view.send(rdpview::Input::ClipboardSync);
+        });
+        if found.is_none() {
+            state.rdp_clip_focus.close(id);
+        }
+    }
+    Ok(())
+}
+
 /// Alt+P numa aba RDP: digita a senha salva como texto.
 #[tauri::command]
 fn rdp_type_password(state: State<AppState>, id: u32, alias: String) -> Res<String> {
@@ -432,9 +453,12 @@ fn rdp_type_password(state: State<AppState>, id: u32, alias: String) -> Res<Stri
 }
 
 #[tauri::command]
-fn rdp_close(state: State<AppState>, id: u32) {
+async fn rdp_close(state: State<'_, AppState>, id: u32) -> Res<()> {
+    let view = state.rdps.lock().unwrap().remove(&id);
+    state.rdp_clip_focus.close(id);
     // Drop encerra a sessão (e o túnel, se houver)
-    state.rdps.lock().unwrap().remove(&id);
+    drop(view);
+    Ok(())
 }
 
 /// Guarda a impressão digital do certificado aceito (1ª conexão ou "confiar no novo").
@@ -750,6 +774,7 @@ fn main() {
             set_lang,
             rdp_open,
             rdp_input,
+            rdp_clipboard_focus,
             rdp_type_password,
             rdp_close,
             rdp_cert_save,

@@ -69,6 +69,8 @@ pub enum Input {
     /// texto digitado como caracteres (Alt+P: a senha salva)
     Text(Zeroizing<String>),
     Resize { width: u16, height: u16 },
+    /// a aba ganhou foco: confere já se o clipboard do Linux mudou
+    ClipboardSync,
 }
 
 pub struct RdpView {
@@ -88,6 +90,8 @@ impl RdpView {
         known_cert: String,
         frames: Channel<InvokeResponseBody>,
         events: Channel<Event>,
+        clip_id: u32,
+        clip_focus: crate::rdpclip::Focus,
     ) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         let tunnel = std::sync::Arc::new(std::sync::Mutex::new(None));
@@ -106,6 +110,7 @@ impl RdpView {
             let out = Out { frames, events: events.clone() };
             let result = rt.block_on(run(
                 host, gateway, width, height, known_cert, rx, &out, &tunnel_slot,
+                ClipChannel::new(clip_focus, clip_id),
             ));
             if let Some(mut c) = tunnel_slot.lock().unwrap().take() {
                 let _ = c.kill();
@@ -178,6 +183,7 @@ async fn run(
     mut rx: mpsc::UnboundedReceiver<Input>,
     out: &Out,
     tunnel: &std::sync::Mutex<Option<Child>>,
+    clip: ClipChannel,
 ) -> Result<()> {
     if host.user.is_empty() {
         bail!("{}", sshdeck_core::lang::tr("err.rdp_user"));
@@ -205,11 +211,11 @@ async fn run(
     // TLS moderno (rustls, TLS 1.2+); se o servidor derrubar, de novo com o OpenSSL liberando
     // TLS 1.0/1.1 e cifras antigas (Windows 7/2008 R2 sem atualização, xrdp antigos), como o FreeRDP
     let (connector, upgraded, mut framed, cert) =
-        match handshake(&host, width, height, target, false).await {
+        match handshake(&clip, &host, width, height, target, false).await {
             Ok(h) => h,
             Err(modern) => {
                 eprintln!("rdp {}: TLS moderno falhou ({modern:#}), tentando TLS antigo", host.alias);
-                handshake(&host, width, height, target, true)
+                handshake(&clip, &host, width, height, target, true)
                     .await
                     .map_err(|legacy| anyhow!("{modern:#} · TLS antigo: {legacy:#}"))?
             }
@@ -242,7 +248,53 @@ async fn run(
     .await
     .map_err(|e| anyhow!("{}", describe_connect_error(&e)))?;
     let _ = out.events.send(Event::Connected);
-    session(framed, result, &mut rx, out).await
+    session(framed, result, &mut rx, out, clip).await
+}
+
+/// Fila do backend de clipboard para o laço da sessão.
+struct ClipChannel {
+    tx: mpsc::UnboundedSender<crate::rdpclip::Event>,
+    rx: mpsc::UnboundedReceiver<crate::rdpclip::Event>,
+    focus: crate::rdpclip::Focus,
+    id: u32,
+    state: crate::rdpclip::Session,
+}
+
+impl ClipChannel {
+    fn new(focus: crate::rdpclip::Focus, id: u32) -> Self {
+        let (tx, rx) = mpsc::unbounded_channel();
+        Self {
+            tx,
+            rx,
+            state: crate::rdpclip::Session::new(focus.clone(), id),
+            focus,
+            id,
+        }
+    }
+}
+
+/// Mensagem do backend de clipboard → frames para o servidor.
+fn clipboard_frames(
+    stage: &mut ActiveStage,
+    msg: Option<ironrdp_cliprdr::backend::ClipboardMessage>,
+) -> Result<Vec<ActiveStageOutput>> {
+    use ironrdp_cliprdr::backend::ClipboardMessage as M;
+    let Some(msg) = msg else {
+        return Ok(vec![]);
+    };
+    let Some(cliprdr) = stage.get_svc_processor_mut::<ironrdp_cliprdr::CliprdrClient>() else {
+        return Ok(vec![]);
+    };
+    let messages = match msg {
+        M::SendInitiateCopy(formats) => cliprdr.initiate_copy(&formats),
+        M::SendFormatData(response) => cliprdr.submit_format_data(response),
+        M::SendInitiatePaste(format) => cliprdr.initiate_paste(format),
+        // arquivos não são compartilhados (por enquanto)
+        _ => return Ok(vec![]),
+    }
+    .map_err(|e| anyhow!("clipboard: {e}"))?;
+    let frame = stage.process_svc_processor_messages(messages)?;
+    Ok(vec![ActiveStageOutput::ResponseFrame(frame)])
 }
 
 /// Conexão TLS de qualquer um dos dois lados (rustls ou OpenSSL).
@@ -252,6 +304,7 @@ type Stream = Box<dyn Io>;
 
 /// TCP, negociação do RDP e TLS. `legacy`: OpenSSL aceitando TLS antigo no lugar do rustls.
 async fn handshake(
+    clip: &ClipChannel,
     host: &Host,
     width: u16,
     height: u16,
@@ -273,7 +326,11 @@ async fn handshake(
     let drdynvc = ironrdp_dvc::DrdynvcClient::new()
         .with_dynamic_channel(DisplayControlClient::new(|_| Ok(Vec::new())));
     let mut connector =
-        ironrdp_connector::ClientConnector::new(config, client_addr).with_static_channel(drdynvc);
+        ironrdp_connector::ClientConnector::new(config, client_addr)
+            .with_static_channel(drdynvc)
+            .with_static_channel(ironrdp_cliprdr::Cliprdr::<ironrdp_cliprdr::Client>::new(Box::new(
+                crate::rdpclip::Backend::new(clip.tx.clone(), clip.focus.clone(), clip.id),
+            )));
 
     let mut framed = TokioFramed::new(stream);
     let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
@@ -565,7 +622,7 @@ fn input_events(input: Input) -> Vec<FastPathInputEvent> {
                 ]
             })
             .collect(),
-        Input::Resize { .. } => vec![],
+        Input::Resize { .. } | Input::ClipboardSync => vec![],
     }
 }
 
@@ -574,6 +631,7 @@ async fn session<S>(
     result: ConnectionResult,
     rx: &mut mpsc::UnboundedReceiver<Input>,
     out: &Out,
+    mut clip: ClipChannel,
 ) -> Result<()>
 where
     S: Sync + Send + Unpin + tokio::io::AsyncRead + tokio::io::AsyncWrite,
@@ -599,6 +657,9 @@ where
     // junta as atualizações em quadros de ~16 ms: menos mensagens, mesmo resultado
     let mut flush = tokio::time::interval(Duration::from_millis(16));
     flush.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    // o Linux não avisa quando o clipboard muda: confere a cada segundo (e ao focar a aba)
+    let mut clip_check = tokio::time::interval(Duration::from_secs(1));
+    clip_check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     loop {
         let outputs = tokio::select! {
@@ -617,7 +678,9 @@ where
                     }
                     return Ok(());
                 };
-                if let Input::Resize { width, height } = input {
+                if let Input::ClipboardSync = input {
+                    clipboard_frames(&mut stage, clip.state.poll(crate::clip::local_text))?
+                } else if let Input::Resize { width, height } = input {
                     let (w, h) = MonitorLayoutEntry::adjust_display_size(width.into(), height.into());
                     match stage.encode_resize(w, h, None, None) {
                         Some(frame) => vec![ActiveStageOutput::ResponseFrame(frame?)],
@@ -628,6 +691,11 @@ where
                     if events.is_empty() { vec![] } else { stage.process_fastpath_input(&mut image, &events)? }
                 }
             }
+            Some(event) = clip.rx.recv() => clipboard_frames(
+                &mut stage,
+                clip.state.handle(event, crate::clip::local_text, crate::clip::set_remote_text),
+            )?,
+            _ = clip_check.tick() => clipboard_frames(&mut stage, clip.state.poll(crate::clip::local_text))?,
             _ = flush.tick() => {
                 if let Some(d) = dirty.take() {
                     send_rect(out, &image, d)?;

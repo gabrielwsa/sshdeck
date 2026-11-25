@@ -1208,7 +1208,7 @@ function HostDetail({
           <button className="btn ghost" title={`${t("gui.edit")} (e)`} onClick={onEdit}>
             <span className="nf">{ICON.edit}</span> {t("gui.edit")}
           </button>
-          <button className="btn ghost danger" title={`${t("gui.delete")} (d)`} onClick={onDelete}>
+          <button className="btn wine" title={`${t("gui.delete")} (d)`} onClick={onDelete}>
             <span className="nf">{ICON.trash}</span> {t("gui.delete")}
           </button>
         </div>
